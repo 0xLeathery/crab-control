@@ -755,6 +755,7 @@ export function McpPanel({
           const isProjectMcp =
             s.scope.toLowerCase().includes("project") ||
             s.source.toLowerCase().includes(".mcp.json");
+          const isClaudeAi = mcpScopeFlag(s) === "claudeai";
           return (
             <div className="row" key={s.name + s.source}>
               <div className="grow">
@@ -783,9 +784,21 @@ export function McpPanel({
                   </button>
                 </>
               )}
-              <button className="btn danger-outline" onClick={() => setRemoveTarget(s)}>
-                Remove
-              </button>
+              {isClaudeAi ? (
+                <span
+                  className="badge muted"
+                  title="Provided by your connected claude.ai account — remove it in claude.ai or via Claude Code's /mcp menu"
+                >
+                  claude.ai managed
+                </span>
+              ) : (
+                <button
+                  className="btn danger-outline"
+                  onClick={() => setRemoveTarget(s)}
+                >
+                  Remove
+                </button>
+              )}
             </div>
           );
         })

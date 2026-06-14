@@ -28,7 +28,8 @@ fn cache_dir(app: &tauri::AppHandle) -> PathBuf {
 }
 
 #[tauri::command]
-fn app_info(app: tauri::AppHandle) -> AppInfo {
+async fn app_info(app: tauri::AppHandle) -> AppInfo {
+    // async so the `claude --version` call runs off the UI thread.
     info::app_info(&cache_dir(&app))
 }
 
@@ -58,13 +59,26 @@ fn read_plugins(scope: Scope) -> PluginsDomain {
 }
 
 #[tauri::command]
-fn read_mcp(scope: Scope) -> Vec<McpServer> {
-    mcp::get_mcp(&scope)
+async fn read_mcp(scope: Scope) -> Vec<McpServer> {
+    // Heavy (spawns the claude CLI + health checks) — run on the blocking pool
+    // so it never freezes the UI thread.
+    tauri::async_runtime::spawn_blocking(move || mcp::get_mcp(&scope))
+        .await
+        .unwrap_or_default()
 }
 
 #[tauri::command]
-fn fetch_schema(app: tauri::AppHandle, force: bool) -> schema::SchemaResult {
-    schema::get_schema(&cache_dir(&app), force)
+async fn fetch_schema(app: tauri::AppHandle, force: bool) -> schema::SchemaResult {
+    let dir = cache_dir(&app);
+    tauri::async_runtime::spawn_blocking(move || schema::get_schema(&dir, force))
+        .await
+        .unwrap_or_else(|e| schema::SchemaResult {
+            url: String::new(),
+            from_cache: false,
+            fetched_at_ms: None,
+            schema: None,
+            error: Some(format!("task failed: {e}")),
+        })
 }
 
 // ---- Phase 2: safe editing (raw JSON) ----
@@ -124,8 +138,10 @@ fn preview_mcp_toggle(
 }
 
 #[tauri::command]
-fn mcp_remove(name: String, scope_flag: String) -> Result<String, String> {
-    mcp::remove(&name, &scope_flag)
+async fn mcp_remove(name: String, scope_flag: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || mcp::remove(&name, &scope_flag))
+        .await
+        .map_err(|e| format!("task failed: {e}"))?
 }
 
 // ---- Phase 3: creation flows + snapshot export ----
@@ -146,8 +162,10 @@ fn mcp_add_preview(spec: creator::McpAddSpec) -> String {
 }
 
 #[tauri::command]
-fn mcp_add(spec: creator::McpAddSpec) -> Result<String, String> {
-    creator::mcp_add(&spec)
+async fn mcp_add(spec: creator::McpAddSpec) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || creator::mcp_add(&spec))
+        .await
+        .map_err(|e| format!("task failed: {e}"))?
 }
 
 #[tauri::command]

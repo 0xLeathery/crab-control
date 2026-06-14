@@ -6,7 +6,7 @@
 //! resolve the `claude` binary deliberately rather than trusting PATH.
 
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::OnceLock;
 
 use serde_json::Value;
@@ -118,11 +118,52 @@ pub fn claude_output(args: &[&str]) -> Result<String, String> {
     }
 }
 
-/// Remove an MCP server via the CLI (`claude mcp remove <name> -s <scope>`).
-/// Destructive — the UI confirms before calling this.
+/// Run `claude <args>` and return (success, combined output). Checks exit code
+/// so callers can distinguish real success from a CLI error message.
+fn claude_run(args: &[&str]) -> Result<(bool, String), String> {
+    let bin = resolve_claude().ok_or_else(|| "claude CLI not found".to_string())?;
+    let out = Command::new(&bin)
+        .args(args)
+        .stdin(Stdio::null()) // no TTY → never hang on an interactive prompt
+        .output()
+        .map_err(|e| format!("failed to run claude: {e}"))?;
+    let text = if out.stdout.is_empty() {
+        String::from_utf8_lossy(&out.stderr).to_string()
+    } else {
+        String::from_utf8_lossy(&out.stdout).to_string()
+    };
+    Ok((out.status.success(), strip_ansi(&text).trim().to_string()))
+}
+
+/// Remove an MCP server via the CLI. `claude mcp remove` only supports the
+/// local/user/project scopes — claude.ai-account servers can't be removed here.
 pub fn remove(name: &str, scope_flag: &str) -> Result<String, String> {
-    let out = claude_output(&["mcp", "remove", name, "-s", scope_flag])?;
-    Ok(strip_ansi(&out).trim().to_string())
+    if scope_flag == "claudeai" {
+        return Err(
+            "\"claude.ai\" servers come from your connected claude.ai account and can't be \
+             removed from here. Disconnect them in claude.ai, or use Claude Code's /mcp menu."
+                .into(),
+        );
+    }
+    let mut args = vec!["mcp", "remove", name];
+    if matches!(scope_flag, "local" | "user" | "project") {
+        args.push("-s");
+        args.push(scope_flag);
+    }
+    let (success, out) = claude_run(&args)?;
+    if success {
+        Ok(if out.is_empty() {
+            format!("Removed {name}.")
+        } else {
+            out
+        })
+    } else {
+        Err(if out.is_empty() {
+            "claude mcp remove failed".into()
+        } else {
+            out
+        })
+    }
 }
 
 fn strip_ansi(s: &str) -> String {
