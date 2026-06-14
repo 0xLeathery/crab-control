@@ -265,6 +265,12 @@ export default function App() {
               onRefreshSchema={refreshSchema}
               schemaBusy={schemaBusy}
               scope={scope}
+              onChanged={() =>
+                api
+                  .readSettings(scope)
+                  .then(setSettings)
+                  .catch(() => {})
+              }
             />
           )}
           {active === "settings" && (

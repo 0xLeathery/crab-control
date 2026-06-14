@@ -4,6 +4,7 @@
 
 mod creator;
 mod edits;
+mod importer;
 mod info;
 mod items;
 mod mcp;
@@ -154,6 +155,16 @@ fn export_snapshot(scope: Scope) -> Result<creator::ExportResult, String> {
     creator::export_snapshot(&scope, None)
 }
 
+#[tauri::command]
+fn list_snapshots() -> Vec<importer::SnapshotRef> {
+    importer::list_snapshots()
+}
+
+#[tauri::command]
+fn preview_import(scope: Scope, path: String) -> Result<importer::ImportPlan, String> {
+    importer::preview_import(&scope, &path)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -178,6 +189,8 @@ pub fn run() {
             mcp_add_preview,
             mcp_add,
             export_snapshot,
+            list_snapshots,
+            preview_import,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

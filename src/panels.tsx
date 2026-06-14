@@ -19,6 +19,7 @@ import {
 import { Empty, Icon, InlineValue, JsonView, LayerBadge } from "./ui";
 import { ConfirmModal, PreviewConfirm, RawEditor } from "./editor";
 import { AddMcpModal, NewItemModal } from "./create";
+import { ImportModal } from "./import";
 
 function defaultWriteLayer(scope: Scope): Layer {
   return scope.kind === "project" ? "project" : "user";
@@ -50,6 +51,7 @@ export function OverviewPanel({
   onRefreshSchema,
   schemaBusy,
   scope,
+  onChanged,
 }: {
   info: AppInfo | null;
   schema: SchemaResult | null;
@@ -57,10 +59,12 @@ export function OverviewPanel({
   onRefreshSchema: () => void;
   schemaBusy: boolean;
   scope: Scope;
+  onChanged: () => void;
 }) {
   const [exportBusy, setExportBusy] = useState(false);
   const [exportNote, setExportNote] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const doExport = async () => {
     setExportBusy(true);
@@ -191,11 +195,24 @@ export function OverviewPanel({
               <Icon name="dot" size={12} /> {exportError}
             </div>
           )}
-          <button className="btn primary" onClick={doExport} disabled={exportBusy}>
-            {exportBusy ? "Exporting…" : "Export snapshot"}
-          </button>
+          <div className="toolbar" style={{ margin: 0 }}>
+            <button className="btn primary" onClick={doExport} disabled={exportBusy}>
+              {exportBusy ? "Exporting…" : "Export snapshot"}
+            </button>
+            <button className="btn" onClick={() => setImporting(true)}>
+              Import snapshot…
+            </button>
+          </div>
         </div>
       </div>
+
+      {importing && (
+        <ImportModal
+          scope={scope}
+          onClose={() => setImporting(false)}
+          onApplied={onChanged}
+        />
+      )}
     </div>
   );
 }

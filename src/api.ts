@@ -187,6 +187,24 @@ export interface ExportResult {
   bytes: number;
 }
 
+export interface SnapshotRef {
+  path: string;
+  displayPath: string;
+  name: string;
+}
+
+export interface SkippedKeys {
+  file: string;
+  keys: string[];
+}
+
+export interface ImportPlan {
+  sourceDisplay: string;
+  files: MutationPreview[];
+  skipped: SkippedKeys[];
+  note: string;
+}
+
 export const api = {
   appInfo: () => invoke<AppInfo>("app_info"),
   listProjects: () => invoke<ProjectRef[]>("list_projects"),
@@ -219,4 +237,7 @@ export const api = {
   mcpAddPreview: (spec: McpAddSpec) => invoke<string>("mcp_add_preview", { spec }),
   mcpAdd: (spec: McpAddSpec) => invoke<string>("mcp_add", { spec }),
   exportSnapshot: (scope: Scope) => invoke<ExportResult>("export_snapshot", { scope }),
+  listSnapshots: () => invoke<SnapshotRef[]>("list_snapshots"),
+  previewImport: (scope: Scope, path: string) =>
+    invoke<ImportPlan>("preview_import", { scope, path }),
 };
