@@ -64,6 +64,23 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      # macOS code signing + notarization. Gated behind the repo variable
+      # SIGN_MACOS=true so the build stays unsigned (and green) until the Apple
+      # secrets exist. Injecting the env only when enabled avoids tauri-action
+      # trying to import an empty certificate. See SIGNING.md.
+      - name: Configure macOS signing
+        if: ${{ matrix.platform == 'macos-latest' && vars.SIGN_MACOS == 'true' }}
+        shell: bash
+        run: |
+          {
+            echo "APPLE_CERTIFICATE=${{ secrets.APPLE_CERTIFICATE }}"
+            echo "APPLE_CERTIFICATE_PASSWORD=${{ secrets.APPLE_CERTIFICATE_PASSWORD }}"
+            echo "APPLE_SIGNING_IDENTITY=${{ secrets.APPLE_SIGNING_IDENTITY }}"
+            echo "APPLE_ID=${{ secrets.APPLE_ID }}"
+            echo "APPLE_PASSWORD=${{ secrets.APPLE_PASSWORD }}"
+            echo "APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}"
+          } >> "$GITHUB_ENV"
+
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -72,8 +89,9 @@ jobs:
           # so the in-app updater can verify and install new versions.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # macOS code signing + notarization is intentionally NOT configured —
-          # builds are unsigned (Apple cert). Add APPLE_* secrets to enable.
+          # APPLE_* come from the "Configure macOS signing" step (only when
+          # SIGN_MACOS=true). Windows signing is handled via the Tauri
+          # signCommand (see SIGNING.md) once Azure Trusted Signing is set up.
         with:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', github.run_number) }}
           releaseName: "Crab Control ${{ github.ref_type == 'tag' && github.ref_name || github.run_number }}"

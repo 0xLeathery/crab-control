@@ -69,17 +69,15 @@ npm run app:build      # → src-tauri/target/release/bundle/
   `libwebkit2gtk-4.1-dev` and friends (see the workflow's apt step, or
   [Tauri prerequisites](https://tauri.app/start/prerequisites/)).
 
-## Code signing & notarization (optional, recommended for distribution)
+## Code signing & notarization
 
 Unsigned builds work but trigger OS warnings (macOS Gatekeeper, Windows
-SmartScreen). To sign:
+SmartScreen). The release workflow is **already wired and gated** for macOS
+signing (off until `SIGN_MACOS=true` + the Apple secrets exist), and Windows
+signing via Azure Trusted Signing is documented and ready to finish.
 
-- **macOS** — add these repo secrets and the workflow picks them up:
-  `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`,
-  and for notarization `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password),
-  `APPLE_TEAM_ID`.
-- **Windows** — sign the `.msi`/`.exe` with a code-signing certificate (e.g. via
-  `signtool`, or a signing service). Without it the app still installs.
+Full step-by-step (enrollment, certs, secrets, turning it on): see
+**[SIGNING.md](SIGNING.md)**.
 
 ## Auto-updates (configured)
 
