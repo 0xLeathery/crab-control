@@ -1,0 +1,58 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#27313f"/>
+      <stop offset="1" stop-color="#121821"/>
+    </linearGradient>
+    <linearGradient id="shell" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff7a4d"/>
+      <stop offset="1" stop-color="#ec5a2c"/>
+    </linearGradient>
+  </defs>
+
+  <!-- tile -->
+  <rect x="0" y="0" width="1024" height="1024" rx="232" fill="url(#bg)"/>
+
+  <!-- leash: rope from crab up to a handle loop -->
+  <g fill="none" stroke="#c9d2de" stroke-width="20" stroke-linecap="round">
+    <path d="M690 560 C 800 470, 858 380, 858 268"/>
+    <circle cx="838" cy="232" r="40"/>
+  </g>
+
+  <!-- legs -->
+  <g fill="none" stroke="#ec5a2c" stroke-width="34" stroke-linecap="round">
+    <path d="M360 660 C 300 700, 250 706, 196 690"/>
+    <path d="M372 706 C 320 760, 268 792, 214 800"/>
+    <path d="M404 740 C 372 800, 344 846, 312 876"/>
+    <path d="M664 660 C 724 700, 774 706, 828 690"/>
+    <path d="M652 706 C 704 760, 756 792, 810 800"/>
+    <path d="M620 740 C 652 800, 680 846, 712 876"/>
+  </g>
+
+  <!-- claws -->
+  <g fill="url(#shell)">
+    <path d="M372 556 C 300 548, 236 506, 214 430 C 262 446, 300 480, 318 524 C 330 470, 318 416, 280 380 C 366 408, 420 484, 408 566 C 398 560, 384 557, 372 556 Z"/>
+    <path d="M652 556 C 724 548, 788 506, 810 430 C 762 446, 724 480, 706 524 C 694 470, 706 416, 744 380 C 658 408, 604 484, 616 566 C 626 560, 640 557, 652 556 Z"/>
+  </g>
+
+  <!-- eye stalks -->
+  <g fill="none" stroke="#ec5a2c" stroke-width="30" stroke-linecap="round">
+    <path d="M448 520 L 448 408"/>
+    <path d="M576 520 L 576 408"/>
+  </g>
+  <!-- eyes -->
+  <circle cx="448" cy="382" r="46" fill="#ffffff"/>
+  <circle cx="576" cy="382" r="46" fill="#ffffff"/>
+  <circle cx="452" cy="386" r="20" fill="#1b212b"/>
+  <circle cx="580" cy="386" r="20" fill="#1b212b"/>
+
+  <!-- body / shell -->
+  <ellipse cx="512" cy="616" rx="320" ry="208" fill="url(#shell)"/>
+  <!-- shell detailing -->
+  <g fill="none" stroke="#d8512a" stroke-width="16" stroke-linecap="round" opacity="0.8">
+    <path d="M360 580 C 420 540, 604 540, 664 580"/>
+    <path d="M338 648 L 380 648 M462 664 L 562 664 M644 648 L 686 648"/>
+  </g>
+  <!-- little smile -->
+  <path d="M468 690 C 492 716, 532 716, 556 690" fill="none" stroke="#b5421f" stroke-width="16" stroke-linecap="round"/>
+</svg>
