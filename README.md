@@ -146,11 +146,19 @@ testing.
 
 Tauri v2 · Rust · React 19 · Vite · TypeScript
 
-## Disclaimer
+## Trademarks & disclaimer
 
-Crab Control is an independent, unofficial tool. It is **not affiliated with or
-endorsed by Anthropic.** It reads and (with your confirmation) edits files that
-Claude Code uses; back up anything you care about.
+Crab Control is an independent, unofficial project. It is **not affiliated with,
+endorsed by, or sponsored by Anthropic.**
+
+*Claude* and *Claude Code* are trademarks of Anthropic, PBC. They are used here
+only **descriptively** (nominative fair use) to indicate that this tool reads and
+edits the configuration that Claude Code uses — not as branding for this project.
+The name, icon, and all artwork are original to Crab Control. No Anthropic code or
+assets are bundled.
+
+The app reads and, with your explicit confirmation, edits your local config
+files; back up anything you care about.
 
 ## License
 
