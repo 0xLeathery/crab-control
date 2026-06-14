@@ -81,11 +81,25 @@ SmartScreen). To sign:
 - **Windows** — sign the `.msi`/`.exe` with a code-signing certificate (e.g. via
   `signtool`, or a signing service). Without it the app still installs.
 
-## Auto-updates (optional, later)
+## Auto-updates (configured)
 
-Tauri's updater can ship in-app updates from the GitHub Release. It needs a
-signing keypair (`tauri signer generate`), the `updater` config in
-`tauri.conf.json`, and `TAURI_SIGNING_PRIVATE_KEY` in CI. Not configured yet.
+In-app auto-update is wired up:
+
+- A signing keypair was generated with `tauri signer generate`; the **public**
+  key lives in `tauri.conf.json` (`plugins.updater.pubkey`), and the **private**
+  key is stored as the `TAURI_SIGNING_PRIVATE_KEY` repo secret (the key has no
+  password, so the password env resolves empty).
+- The workflow passes that secret, so `tauri-action` signs the update artifacts
+  and uploads a `latest.json` manifest to each release.
+- The app's updater endpoint is
+  `https://github.com/0xLeathery/crab-control/releases/latest/download/latest.json`.
+  Note `…/releases/latest/…` resolves to the latest **published** release — so
+  **publish** a draft release for the updater to find it.
+- In the app: **Overview → Updates → Check for updates** detects a newer
+  published version, downloads + installs the signed update, and relaunches.
+
+Keep the private key (`~/.tauri/crab-control.key`) safe — if it's lost, you
+can't sign updates that existing installs will accept.
 
 ## Notes on the `claude` CLI
 

@@ -113,6 +113,7 @@ export interface ProjectRef {
 }
 
 export interface AppInfo {
+  appVersion: string;
   home: string;
   claudeDir: string;
   claudeFound: boolean;

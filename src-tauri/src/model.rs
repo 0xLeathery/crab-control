@@ -178,6 +178,7 @@ pub struct ProjectRef {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppInfo {
+    pub app_version: String,
     pub home: String,
     pub claude_dir: String,
     pub claude_found: bool,

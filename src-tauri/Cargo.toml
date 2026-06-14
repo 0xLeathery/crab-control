@@ -1,6 +1,6 @@
 [package]
 name = "crab-control"
-version = "0.1.0"
+version = "0.1.1"
 description = "View and safely edit your Claude Code configuration"
 authors = ["you"]
 edition = "2021"
@@ -19,3 +19,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 # Minimal blocking HTTP client (rustls) for the one-time settings-schema fetch.
 ureq = { version = "2", default-features = false, features = ["tls", "gzip"] }
+# In-app auto-update (poll GitHub releases, download + install signed updates).
+tauri-plugin-process = "2"
+
+[target."cfg(not(any(target_os = \"android\", target_os = \"ios\")))".dependencies]
+tauri-plugin-updater = "2"

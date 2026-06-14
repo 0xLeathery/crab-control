@@ -68,10 +68,12 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS signing + notarization is intentionally NOT configured — these
-          # builds are unsigned. To enable it later, add the APPLE_* repo secrets
-          # and pass them here as env vars (see RELEASING.md). Passing them while
-          # empty makes tauri-action try to import an empty cert and fail.
+          # Updater signing — signs the update artifacts and generates latest.json
+          # so the in-app updater can verify and install new versions.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS code signing + notarization is intentionally NOT configured —
+          # builds are unsigned (Apple cert). Add APPLE_* secrets to enable.
         with:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', github.run_number) }}
           releaseName: "Crab Control ${{ github.ref_type == 'tag' && github.ref_name || github.run_number }}"

@@ -167,7 +167,15 @@ fn preview_import(scope: Scope, path: String) -> Result<importer::ImportPlan, St
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default().plugin(tauri_plugin_process::init());
+
+    // Auto-update is desktop-only.
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+
+    builder
         .invoke_handler(tauri::generate_handler![
             app_info,
             list_projects,

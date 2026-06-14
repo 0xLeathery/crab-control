@@ -127,12 +127,13 @@ it works offline and adapts as the config surface changes.
 | Plugin / MCP enable, disable, remove | ✅ |
 | Creation flows (MCP server, agent, command, skill) | ✅ |
 | Masked config-snapshot **export** | ✅ |
-| Snapshot **import** | ⛔ intentionally omitted¹ |
+| Guarded snapshot **import** (skips masked secrets) | ✅ |
+| In-app **auto-update** (signed, from GitHub Releases) | ✅ |
 
-¹ A snapshot has secrets masked, so importing it would overwrite real tokens with
-`••••`, and applying one would rewrite many files at once — the single most
-destructive operation in the app. It's left out rather than shipped half-safe. A
-guarded, per-file, secret-skipping importer could be added later.
+Import is deliberately conservative: because snapshots have secrets masked, the
+importer **never writes a masked value** — it skips those keys (and tells you
+which), applies only the non-secret changes, and still routes every file through
+the diff + confirm + backup pipeline.
 
 ## Releases
 

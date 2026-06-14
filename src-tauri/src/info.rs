@@ -20,6 +20,7 @@ pub fn app_info(cache_dir: &Path) -> AppInfo {
     let (schema_cached, schema_at) = crate::schema::cache_info(cache_dir);
 
     AppInfo {
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
         home: home().display().to_string(),
         claude_dir: tildify(&claude_dir()),
         claude_found: claude_path.is_some(),

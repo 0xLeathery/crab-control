@@ -20,6 +20,7 @@ import { Empty, Icon, InlineValue, JsonView, LayerBadge } from "./ui";
 import { ConfirmModal, PreviewConfirm, RawEditor } from "./editor";
 import { AddMcpModal, NewItemModal } from "./create";
 import { ImportModal } from "./import";
+import { UpdateCard } from "./update";
 
 function defaultWriteLayer(scope: Scope): Layer {
   return scope.kind === "project" ? "project" : "user";
@@ -127,6 +128,9 @@ export function OverviewPanel({
           </div>
         </div>
       </div>
+
+      <div className="section-title">Updates</div>
+      <UpdateCard currentVersion={info.appVersion} />
 
       <div className="section-title">Settings schema</div>
       <div className="card">
