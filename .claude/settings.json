@@ -5,6 +5,8 @@
       "Bash(npm ci)",
       "Bash(npm install)",
       "Bash(npm run build)",
+      "Bash(npm test)",
+      "Bash(npx vitest:*)",
       "Bash(npx tsc --noEmit)",
       "Bash(cargo fmt:*)",
       "Bash(cargo check:*)",
