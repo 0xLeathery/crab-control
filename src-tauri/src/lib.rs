@@ -250,11 +250,19 @@ mod tests {
             );
         }
         for e in &s.effective {
-            eprintln!("  {} <= {:?} (overrode {})", e.key, e.source, e.overridden.len());
+            eprintln!(
+                "  {} <= {:?} (overrode {})",
+                e.key,
+                e.source,
+                e.overridden.len()
+            );
         }
         // Sanity: secrets must never appear raw in serialized settings.
         let blob = serde_json::to_string(&s).unwrap();
-        assert!(!blob.contains("ib_5c7753"), "raw secret leaked into settings!");
+        assert!(
+            !blob.contains("ib_5c7753"),
+            "raw secret leaked into settings!"
+        );
 
         let p = plugins::get_plugins(&scope);
         eprintln!("\n== PLUGINS == {}", p.plugins.len());
@@ -283,7 +291,10 @@ mod tests {
         let h = settings::get_hooks(&scope);
         eprintln!("\n== HOOKS == {}", h.len());
         for hk in &h {
-            eprintln!("  {} matcher={:?} type={} [{:?}]", hk.event, hk.matcher, hk.hook_type, hk.source);
+            eprintln!(
+                "  {} matcher={:?} type={} [{:?}]",
+                hk.event, hk.matcher, hk.hook_type, hk.source
+            );
         }
 
         let pr = info::list_projects();

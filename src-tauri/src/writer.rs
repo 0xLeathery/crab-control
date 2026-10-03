@@ -3,6 +3,7 @@
 //!   2. validate         (must parse as JSON; invalid input is rejected)
 //!   3. backup           (timestamped `<file>.backup.<epoch-ms>`, keep last 5)
 //!   4. atomic write     (temp file in same dir + rename)
+//!
 //! Raw text is written verbatim once validated, so the user's exact formatting
 //! and key order are preserved.
 
@@ -11,9 +12,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 
-use crate::model::{Layer, Scope};
 #[cfg(test)]
 use crate::model::ScopeKind;
+use crate::model::{Layer, Scope};
 use crate::settings::layer_path;
 
 const KEEP_BACKUPS: usize = 5;
@@ -84,9 +85,9 @@ fn contains_secrets(v: &serde_json::Value, key_hint: Option<&str>) -> bool {
                 || crate::secrets::looks_like_secret(s)
         }
         Value::Array(a) => a.iter().any(|x| contains_secrets(x, key_hint)),
-        Value::Object(m) => m.iter().any(|(k, val)| {
-            crate::secrets::is_secret_key(k) || contains_secrets(val, Some(k))
-        }),
+        Value::Object(m) => m
+            .iter()
+            .any(|(k, val)| crate::secrets::is_secret_key(k) || contains_secrets(val, Some(k))),
         _ => false,
     }
 }
@@ -162,7 +163,7 @@ fn backup(path: &Path) -> Result<Option<PathBuf>, String> {
             }
         }
     }
-    backups.sort_by(|a, b| b.0.cmp(&a.0)); // newest first
+    backups.sort_by_key(|b| std::cmp::Reverse(b.0)); // newest first
     for (_, old) in backups.into_iter().skip(KEEP_BACKUPS) {
         let _ = std::fs::remove_file(old);
     }
@@ -225,7 +226,9 @@ pub(crate) fn save_to_path(path: &Path, read_only: bool, content: &str) -> SaveR
     // Atomic write: temp file in same dir, then rename over the target.
     let tmp = path.with_file_name(format!(
         "{}.tmp.{}",
-        path.file_name().and_then(|n| n.to_str()).unwrap_or("settings"),
+        path.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("settings"),
         now_ms()
     ));
     if let Err(e) = std::fs::write(&tmp, content.as_bytes()) {
@@ -266,7 +269,11 @@ mod tests {
         let before = std::fs::read_to_string(&path).unwrap();
         let bad = save_to_path(&path, false, "{ not json ");
         assert!(!bad.ok);
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), before, "file untouched on invalid");
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            before,
+            "file untouched on invalid"
+        );
 
         // Read-only is refused.
         assert!(!save_to_path(&path, true, "{}").ok);
@@ -296,7 +303,12 @@ mod tests {
         let temps = std::fs::read_dir(&dir)
             .unwrap()
             .flatten()
-            .filter(|e| e.file_name().to_str().map(|n| n.contains(".tmp.")).unwrap_or(false))
+            .filter(|e| {
+                e.file_name()
+                    .to_str()
+                    .map(|n| n.contains(".tmp."))
+                    .unwrap_or(false)
+            })
             .count();
         assert_eq!(temps, 0, "atomic temp files should be cleaned up");
 

@@ -302,7 +302,21 @@ mod tests {
             headers: vec![],
         };
         let a = mcp_add_argv(&stdio);
-        assert_eq!(a, vec!["mcp", "add", "srv", "-s", "user", "-e", "API_KEY=x", "--", "npx", "my-mcp"]);
+        assert_eq!(
+            a,
+            vec![
+                "mcp",
+                "add",
+                "srv",
+                "-s",
+                "user",
+                "-e",
+                "API_KEY=x",
+                "--",
+                "npx",
+                "my-mcp"
+            ]
+        );
 
         let http = McpAddSpec {
             name: "h".into(),
@@ -317,8 +331,16 @@ mod tests {
         assert_eq!(
             a,
             vec![
-                "mcp", "add", "--transport", "http", "h", "https://x/mcp", "--header",
-                "Authorization: Bearer t", "-s", "user"
+                "mcp",
+                "add",
+                "--transport",
+                "http",
+                "h",
+                "https://x/mcp",
+                "--header",
+                "Authorization: Bearer t",
+                "-s",
+                "user"
             ]
         );
     }

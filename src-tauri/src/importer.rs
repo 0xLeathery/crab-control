@@ -51,14 +51,15 @@ pub fn list_snapshots() -> Vec<SnapshotRef> {
         for e in entries.flatten() {
             let p = e.path();
             if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
-                if name.starts_with("crab-control-snapshot-") && name.ends_with(".json") {
-                    if seen.insert(p.clone()) {
-                        out.push(SnapshotRef {
-                            display_path: tildify(&p),
-                            name: name.to_string(),
-                            path: p.display().to_string(),
-                        });
-                    }
+                if name.starts_with("crab-control-snapshot-")
+                    && name.ends_with(".json")
+                    && seen.insert(p.clone())
+                {
+                    out.push(SnapshotRef {
+                        display_path: tildify(&p),
+                        name: name.to_string(),
+                        path: p.display().to_string(),
+                    });
                 }
             }
         }
@@ -86,8 +87,7 @@ fn pretty(v: &Value) -> String {
 
 /// Build the per-file import plan for a snapshot against the current scope.
 pub fn preview_import(scope: &Scope, path: &str) -> Result<ImportPlan, String> {
-    let text =
-        std::fs::read_to_string(path).map_err(|e| format!("cannot read snapshot: {e}"))?;
+    let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read snapshot: {e}"))?;
     let snap: Value = serde_json::from_str(&text).map_err(|e| format!("invalid snapshot: {e}"))?;
     if snap.get("tool").and_then(|t| t.as_str()) != Some("crab-control") {
         return Err("this file is not a Crab Control snapshot".into());
@@ -139,9 +139,7 @@ pub fn preview_import(scope: &Scope, path: &str) -> Result<ImportPlan, String> {
         }
 
         let mut file_skipped = Vec::new();
-        if let (Value::Object(snap_map), Value::Object(out_map)) =
-            (snap_content, &mut merged)
-        {
+        if let (Value::Object(snap_map), Value::Object(out_map)) = (snap_content, &mut merged) {
             for (k, v) in snap_map {
                 if k == "$schema" {
                     continue;
@@ -199,7 +197,11 @@ mod tests {
             .as_nanos();
         let proj = std::env::temp_dir().join(format!("cc-import-{now}"));
         std::fs::create_dir_all(proj.join(".claude")).unwrap();
-        std::fs::write(proj.join(".claude/settings.json"), "{\n  \"theme\": \"light\"\n}\n").unwrap();
+        std::fs::write(
+            proj.join(".claude/settings.json"),
+            "{\n  \"theme\": \"light\"\n}\n",
+        )
+        .unwrap();
         let scope = Scope {
             kind: ScopeKind::Project,
             path: Some(proj.display().to_string()),

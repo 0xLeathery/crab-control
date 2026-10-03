@@ -91,7 +91,7 @@ pub struct SettingsDomain {
 pub struct Item {
     pub name: String,
     pub description: Option<String>,
-    pub source: String,       // "user" | "project" | "plugin:<name>"
+    pub source: String, // "user" | "project" | "plugin:<name>"
     pub path: String,
     pub display_path: String,
     /// Raw text preview (frontmatter + body), capped in size.
@@ -122,7 +122,7 @@ pub struct HookEntry {
 #[serde(rename_all = "camelCase")]
 pub struct McpServer {
     pub name: String,
-    pub scope: String,     // claude.ai | user | project (.mcp.json) | local | unknown
+    pub scope: String, // claude.ai | user | project (.mcp.json) | local | unknown
     pub transport: String, // stdio | http | sse | unknown
     /// Command (stdio) or URL (http/sse), already masked.
     pub target: Option<String>,

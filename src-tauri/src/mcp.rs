@@ -40,7 +40,10 @@ fn resolve_claude_uncached() -> Option<PathBuf> {
             if !PathBuf::from(shell).exists() {
                 continue;
             }
-            if let Ok(out) = Command::new(shell).args(["-lc", "command -v claude"]).output() {
+            if let Ok(out) = Command::new(shell)
+                .args(["-lc", "command -v claude"])
+                .output()
+            {
                 if out.status.success() {
                     if let Some(first) = String::from_utf8_lossy(&out.stdout).lines().next() {
                         let p = PathBuf::from(first.trim());
@@ -210,7 +213,9 @@ fn mask_target(target: &str) -> String {
 }
 
 fn normalize_status(raw: &str) -> String {
-    let s = raw.trim().trim_start_matches(['✔', '✓', '✗', '!', '⏸', '·', '-', ' ']);
+    let s = raw
+        .trim()
+        .trim_start_matches(['✔', '✓', '✗', '!', '⏸', '·', '-', ' ']);
     s.trim().to_string()
 }
 
@@ -300,7 +305,10 @@ fn servers_from_map(map: &Value, scope: &str, source: &str, out: &mut Vec<McpSer
             } else {
                 format!("{c} {args}")
             };
-            (typ.clone().unwrap_or_else(|| "stdio".to_string()), Some(full))
+            (
+                typ.clone().unwrap_or_else(|| "stdio".to_string()),
+                Some(full),
+            )
         } else {
             (typ.unwrap_or_else(|| "unknown".to_string()), None)
         };
@@ -334,15 +342,14 @@ pub fn get_mcp(scope: &Scope) -> Vec<McpServer> {
     // Enrich each with scope/transport in parallel (bounded by server count).
     let handles: Vec<_> = servers
         .drain(..)
-        .map(|mut s| std::thread::spawn(move || {
-            enrich(&mut s);
-            s
-        }))
+        .map(|mut s| {
+            std::thread::spawn(move || {
+                enrich(&mut s);
+                s
+            })
+        })
         .collect();
-    let mut servers: Vec<McpServer> = handles
-        .into_iter()
-        .filter_map(|h| h.join().ok())
-        .collect();
+    let mut servers: Vec<McpServer> = handles.into_iter().filter_map(|h| h.join().ok()).collect();
 
     // Merge file-defined servers the CLI didn't surface.
     let mut file_servers: Vec<McpServer> = Vec::new();
@@ -353,7 +360,11 @@ pub fn get_mcp(scope: &Scope) -> Vec<McpServer> {
             servers_from_map(m, "user", "~/.claude.json", &mut file_servers);
         }
         // Per-project block for the active scope.
-        if let Scope { kind: ScopeKind::Project, path: Some(p) } = scope {
+        if let Scope {
+            kind: ScopeKind::Project,
+            path: Some(p),
+        } = scope
+        {
             if let Some(proj) = v.get("projects").and_then(|x| x.get(p)) {
                 if let Some(m) = proj.get("mcpServers") {
                     servers_from_map(m, "local", "~/.claude.json (project)", &mut file_servers);
@@ -363,7 +374,11 @@ pub fn get_mcp(scope: &Scope) -> Vec<McpServer> {
     }
 
     // Project .mcp.json (committed, shared servers).
-    if let Scope { kind: ScopeKind::Project, path: Some(p) } = scope {
+    if let Scope {
+        kind: ScopeKind::Project,
+        path: Some(p),
+    } = scope
+    {
         let mcp_json = PathBuf::from(p).join(".mcp.json");
         if let Ok(Some(v)) = read_json(&mcp_json) {
             if let Some(m) = v.get("mcpServers") {
@@ -379,6 +394,6 @@ pub fn get_mcp(scope: &Scope) -> Vec<McpServer> {
         }
     }
 
-    servers.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    servers.sort_by_key(|a| a.name.to_lowercase());
     servers
 }
