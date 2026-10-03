@@ -316,6 +316,45 @@ mod tests {
     }
 
     #[test]
+    fn prune_keeps_newest_backups() {
+        let dir = std::env::temp_dir().join(format!("cc-writer-prune-{}", now_ms()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("settings.json");
+        std::fs::write(&path, "{}\n").unwrap();
+        // Six old backups with known timestamps, oldest = 1.
+        for ts in 1..=6 {
+            std::fs::write(dir.join(format!("settings.json.backup.{ts}")), "{}").unwrap();
+        }
+
+        assert!(save_to_path(&path, false, "{\"a\": 1}\n").ok);
+
+        let mut left: Vec<String> = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .filter_map(|e| e.file_name().to_str().map(String::from))
+            .filter_map(|n| n.strip_prefix("settings.json.backup.").map(String::from))
+            .collect();
+        left.sort();
+        // 7 backups exist after the save; the fresh (epoch-ms) one plus the
+        // four newest seeded ones survive.
+        assert_eq!(left.len(), 5, "kept: {left:?}");
+        for gone in ["1", "2"] {
+            assert!(
+                !left.contains(&gone.to_string()),
+                "{gone} should be pruned: {left:?}"
+            );
+        }
+        for kept in ["3", "4", "5", "6"] {
+            assert!(
+                left.contains(&kept.to_string()),
+                "{kept} should be kept: {left:?}"
+            );
+        }
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
     fn save_settings_resolves_project_layer_and_refuses_managed() {
         let proj = std::env::temp_dir().join(format!("cc-proj-{}", now_ms()));
         std::fs::create_dir_all(&proj).unwrap();
