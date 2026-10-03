@@ -52,20 +52,38 @@ pub fn looks_like_secret(s: &str) -> bool {
     }
     // Common prefixes for provider tokens.
     const PREFIXES: &[&str] = &[
-        "sk-", "sk_", "pk-", "rk_", "ghp_", "gho_", "ghs_", "github_pat_", "xoxb-", "xoxp-",
-        "ib_", "AKIA", "ASIA", "AIza", "ya29.", "Bearer ", "glpat-",
+        "sk-",
+        "sk_",
+        "pk-",
+        "rk_",
+        "ghp_",
+        "gho_",
+        "ghs_",
+        "github_pat_",
+        "xoxb-",
+        "xoxp-",
+        "ib_",
+        "AKIA",
+        "ASIA",
+        "AIza",
+        "ya29.",
+        "Bearer ",
+        "glpat-",
     ];
     if PREFIXES.iter().any(|p| t.starts_with(p)) {
         return true;
     }
     // JWT: three base64url segments separated by dots.
     let dots = t.matches('.').count();
-    if dots == 2 && t.len() > 40 && t.split('.').all(|seg| {
-        !seg.is_empty()
-            && seg
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
-    }) {
+    if dots == 2
+        && t.len() > 40
+        && t.split('.').all(|seg| {
+            !seg.is_empty()
+                && seg
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+        })
+    {
         return true;
     }
     false
@@ -126,12 +144,9 @@ pub fn mask_value(value: &Value, key_hint: Option<&str>) -> Value {
                 Value::String(s.clone())
             }
         }
-        Value::Array(items) => Value::Array(
-            items
-                .iter()
-                .map(|it| mask_value(it, key_hint))
-                .collect(),
-        ),
+        Value::Array(items) => {
+            Value::Array(items.iter().map(|it| mask_value(it, key_hint)).collect())
+        }
         Value::Object(map) => {
             let mut out = serde_json::Map::new();
             for (k, v) in map {

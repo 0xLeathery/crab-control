@@ -143,7 +143,11 @@ pub fn preview_plugin_toggle(
     );
     let key = full_id.to_string();
     build_preview(scope, layer, note, move |v| {
-        set_in(v, &["enabledPlugins".to_string(), key], Value::Bool(enabled))
+        set_in(
+            v,
+            &["enabledPlugins".to_string(), key],
+            Value::Bool(enabled),
+        )
     })
 }
 
