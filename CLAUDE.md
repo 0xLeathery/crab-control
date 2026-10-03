@@ -9,6 +9,7 @@ See `README.md` for features and the file map.
 ```sh
 npm ci                     # install frontend deps
 npm run build              # tsc typecheck + vite build
+npm test                   # frontend unit tests (Vitest)
 npm run app                # launch the desktop app (dev)
 cd src-tauri && cargo fmt                                   # format Rust
 cd src-tauri && cargo clippy --all-targets -- -D warnings  # lint (CI enforces)
@@ -40,12 +41,34 @@ Linux builds need the Tauri system libs (`libwebkit2gtk-4.1-dev`,
 3. Add a typed wrapper in `src/api.ts` (types mirror `model.rs`).
 4. Use it from the panel in `src/panels.tsx` (or `create.tsx` / `editor.tsx`).
 
-## Testing
+## Test-driven development (required)
 
-- Rust tests live in `#[cfg(test)]` modules next to the code. Tests that
-  touch files must use a temp dir — never the real `~/.claude` or `~/.claude.json`.
-- When running the app during development, don't edit your real Claude config
-  through it unless you mean to.
+Every change — feature, bug fix, or refactor — follows red → green → refactor:
+
+1. **Red:** write or extend a test that captures the new behavior (or
+   reproduces the bug) *before* touching the implementation. Run it and
+   confirm it fails for the expected reason.
+2. **Green:** write the minimum code to make it pass.
+3. **Refactor:** clean up with the suite green.
+
+- **Refactors / lint fixes:** if the touched behavior has no test, add a
+  characterization test first, and check it would catch a regression (e.g.
+  temporarily break the code and watch it fail).
+- **Hard-to-test code** (Tauri commands, CLI calls, React components): pull
+  the logic into a pure function and test that; keep the untested shell thin.
+- Commit tests together with the change. A PR that changes behavior without a
+  test needs an explicit reason in its description.
+
+Where tests live:
+
+- **Rust:** `#[cfg(test)]` modules next to the code (`cargo test`). Tests that
+  touch files must use a temp dir — never the real `~/.claude` or
+  `~/.claude.json`.
+- **Frontend:** `src/**/*.test.ts` with Vitest (`npm test`). Test exported
+  pure functions (e.g. `lineDiff` in `editor.tsx`).
+
+When running the app during development, don't edit your real Claude config
+through it unless you mean to.
 
 ## Conventions
 
