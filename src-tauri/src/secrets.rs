@@ -167,3 +167,113 @@ pub fn mask_value(value: &Value, key_hint: Option<&str>) -> Value {
         other => other.clone(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn forbidden_files_match_case_insensitively() {
+        assert!(is_forbidden_file(".credentials.json"));
+        assert!(is_forbidden_file("Credentials.JSON"));
+        assert!(!is_forbidden_file("settings.json"));
+    }
+
+    #[test]
+    fn secret_key_names() {
+        for k in [
+            "API_KEY",
+            "apiKey",
+            "GITHUB_TOKEN",
+            "client_secret",
+            "Authorization",
+            "key",
+            "aws_access_key",
+            "key_id",
+        ] {
+            assert!(is_secret_key(k), "{k} should be secret");
+        }
+        for k in [
+            "publicKey",
+            "keybindings",
+            "hotkey",
+            "model",
+            "theme",
+            "command",
+        ] {
+            assert!(!is_secret_key(k), "{k} should not be secret");
+        }
+    }
+
+    #[test]
+    fn secret_looking_values() {
+        for v in [
+            "sk-ant-abcdefghijklmnop",
+            "ghp_abcdefghijklmnopqrst",
+            "AKIAABCDEFGHIJKLMNOP",
+            "Bearer abcdefghijklmnop",
+            "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijklmnop",
+        ] {
+            assert!(looks_like_secret(v), "{v} should look secret");
+        }
+        for v in [
+            "sk-short",
+            "claude-sonnet-model-name",
+            "https://example.com/a.b.c",
+            "npx -y some-mcp-server",
+        ] {
+            assert!(!looks_like_secret(v), "{v} should not look secret");
+        }
+    }
+
+    #[test]
+    fn mask_str_hides_all_but_a_short_prefix() {
+        assert_eq!(mask_str(""), "");
+        assert_eq!(mask_str("abc"), "••••");
+        let m = mask_str("sk-ant-abcdefghijklmnop");
+        assert_eq!(m, "sk-••••••(23)");
+        assert!(!m.contains("abcdef"));
+    }
+
+    #[test]
+    fn mask_url_masks_secret_query_params_only() {
+        assert_eq!(
+            mask_url("https://x.dev/api?key=ib_abc&q=1"),
+            "https://x.dev/api?key=••••&q=1"
+        );
+        assert_eq!(
+            mask_url("https://x.dev/api?q=ghp_abcdefghijklmnopqrst"),
+            "https://x.dev/api?q=••••"
+        );
+        assert_eq!(mask_url("https://x.dev/api"), "https://x.dev/api");
+    }
+
+    #[test]
+    fn mask_value_masks_env_headers_and_secret_keys_recursively() {
+        let v = json!({
+            "model": "opus",
+            "env": { "DEBUG": "1", "ANTHROPIC_API_KEY": "sk-ant-abcdefghijklmnop" },
+            "mcpServers": {
+                "s": {
+                    "url": "https://x.dev/mcp?token=abc&v=2",
+                    "headers": { "Authorization": "Bearer abcdefghijklmnop" },
+                    "apiKey": "plainvalue"
+                }
+            },
+            "count": 3
+        });
+        let m = mask_value(&v, None);
+        let s = m.to_string();
+        assert_eq!(m["model"], "opus");
+        assert_eq!(m["count"], 3);
+        // Everything under env is masked, even harmless-looking values.
+        assert_eq!(m["env"]["DEBUG"], "••••");
+        assert!(!s.contains("abcdefghijklmnop"), "leaked: {s}");
+        assert!(!s.contains("plainvalue"), "leaked: {s}");
+        assert_eq!(
+            m["mcpServers"]["s"]["url"],
+            "https://x.dev/mcp?token=••••&v=2"
+        );
+    }
+}
