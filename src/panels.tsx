@@ -21,10 +21,8 @@ import { ConfirmModal, PreviewConfirm, RawEditor } from "./editor";
 import { AddMcpModal, NewItemModal } from "./create";
 import { ImportModal } from "./import";
 import { UpdateCard } from "./update";
+import { defaultWriteLayer, fmtTime, mcpScopeFlag, statusClass } from "./helpers";
 
-function defaultWriteLayer(scope: Scope): Layer {
-  return scope.kind === "project" ? "project" : "user";
-}
 
 /* ---------- small helpers ---------- */
 
@@ -36,12 +34,6 @@ function Loading({ label }: { label: string }) {
   );
 }
 
-function fmtTime(ms?: string | number | null): string {
-  if (ms == null) return "—";
-  const n = typeof ms === "string" ? Number(ms) : ms;
-  if (!Number.isFinite(n) || n === 0) return "—";
-  return new Date(n).toLocaleString();
-}
 
 /* ---------- Overview ---------- */
 
@@ -639,23 +631,7 @@ function SchemaView({
 
 /* ---------- MCP ---------- */
 
-function statusClass(status?: string | null): string {
-  if (!status) return "muted";
-  const s = status.toLowerCase();
-  if (s.includes("connect") && !s.includes("fail")) return "ok";
-  if (s.includes("auth") || s.includes("pending")) return "warn";
-  if (s.includes("fail") || s.includes("error")) return "error";
-  return "muted";
-}
 
-function mcpScopeFlag(s: McpServer): string {
-  const sc = (s.scope || "").toLowerCase();
-  if (sc.includes("claude.ai") || sc.includes("claudeai")) return "claudeai";
-  if (sc.includes("project")) return "project";
-  if (sc.includes("local")) return "local";
-  if (sc.includes("user")) return "user";
-  return "user";
-}
 
 export function McpPanel({
   servers,
