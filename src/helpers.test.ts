@@ -49,3 +49,19 @@ describe("mcpScopeFlag", () => {
     expect(mcpScopeFlag({ scope })).toBe(flag);
   });
 });
+
+describe("bugs", () => {
+  it.each(["Disconnected", "✗ Not connected"])("%s is not shown as ok", (status) => {
+    expect(statusClass(status)).not.toBe("ok");
+  });
+
+  // `claude mcp get` reports scope as a sentence; its other words mention
+  // "project" even for user/local servers.
+  it.each([
+    ["User config (available in all your projects)", "user"],
+    ["Local config (private to you in this project)", "local"],
+    ["Project config (shared via .mcp.json)", "project"],
+  ])("%s → %s", (scope, flag) => {
+    expect(mcpScopeFlag({ scope })).toBe(flag);
+  });
+});
