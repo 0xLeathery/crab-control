@@ -116,6 +116,11 @@ pub fn preview_set_key(
     key_path: Vec<String>,
     value: Value,
 ) -> Result<MutationPreview, String> {
+    if crate::secrets::contains_mask(&value) {
+        return Err(
+            "value contains masked secrets (••••); edit this file in the raw editor".into(),
+        );
+    }
     let note = format!("Set {}", key_path.join("."));
     build_preview(scope, layer, note, move |v| set_in(v, &key_path, value))
 }
@@ -440,6 +445,30 @@ mod tests {
 
         let rm = preview_remove_key(&scope, layer, vec!["theme".into()]).unwrap();
         assert!(!rm.new_text.contains("\"theme\""));
+        std::fs::remove_dir_all(&proj).ok();
+    }
+
+    #[test]
+    fn set_key_refuses_masked_values() {
+        let (scope, proj) = temp_project();
+        let layer = default_write_layer(&scope);
+        let masked = serde_json::json!({ "API_KEY": "sk-••••••(23)" });
+        let err = preview_set_key(&scope, layer, vec!["env".into()], masked).unwrap_err();
+        assert!(err.contains("masked"), "{err}");
+        assert!(preview_set_key(
+            &scope,
+            layer,
+            vec!["model".into()],
+            Value::String("••••".into())
+        )
+        .is_err());
+        assert!(preview_set_key(
+            &scope,
+            layer,
+            vec!["model".into()],
+            Value::String("opus".into())
+        )
+        .is_ok());
         std::fs::remove_dir_all(&proj).ok();
     }
 

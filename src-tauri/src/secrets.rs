@@ -195,6 +195,20 @@ fn mask_token(tok: &str, mask_next: &mut bool) -> String {
     tok.to_string()
 }
 
+/// Character used by every mask; its presence means a value was redacted.
+pub const MASK_CHAR: char = '•';
+
+/// True if any string anywhere in the value contains the mask character, i.e.
+/// it came from masked output and must never be written back to disk.
+pub fn contains_mask(v: &Value) -> bool {
+    match v {
+        Value::String(s) => s.contains(MASK_CHAR),
+        Value::Array(a) => a.iter().any(contains_mask),
+        Value::Object(m) => m.values().any(contains_mask),
+        _ => false,
+    }
+}
+
 /// Recursively mask a JSON value for safe display. `key_hint` is the key under
 /// which this value sits (drives key-based masking); pass None at the root.
 pub fn mask_value(value: &Value, key_hint: Option<&str>) -> Value {
