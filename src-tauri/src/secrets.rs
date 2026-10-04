@@ -150,6 +150,51 @@ fn mask_userinfo(url: &str) -> String {
     format!("{}{masked}{}", &url[..start], &rest[at..])
 }
 
+/// Mask secrets in a command line, token by token: the value after a
+/// secret-named flag (`--api-key X`, `--token=X`), `SECRET_KEY=X`
+/// assignments, token-shaped args, and URL credentials.
+pub fn mask_command(cmd: &str) -> String {
+    let mut out = Vec::new();
+    let mut mask_next = false;
+    for tok in cmd.split(' ') {
+        if mask_next && !tok.is_empty() && !tok.starts_with('-') {
+            out.push("••••".to_string());
+            mask_next = false;
+            continue;
+        }
+        mask_next = false;
+        out.push(mask_token(tok, &mut mask_next));
+    }
+    out.join(" ")
+}
+
+fn mask_token(tok: &str, mask_next: &mut bool) -> String {
+    if tok.starts_with('-') {
+        let flag = tok.trim_start_matches('-');
+        match flag.split_once('=') {
+            Some((name, _)) if is_secret_key(name) => {
+                let eq = tok.find('=').unwrap_or(tok.len());
+                return format!("{}=••••", &tok[..eq]);
+            }
+            Some(_) => {}
+            None => *mask_next = is_secret_key(flag),
+        }
+        return tok.to_string();
+    }
+    if tok.contains("://") {
+        return mask_url(tok);
+    }
+    if let Some((k, _)) = tok.split_once('=') {
+        if is_secret_key(k) {
+            return format!("{k}=••••");
+        }
+    }
+    if looks_like_secret(tok) {
+        return mask_str(tok);
+    }
+    tok.to_string()
+}
+
 /// Recursively mask a JSON value for safe display. `key_hint` is the key under
 /// which this value sits (drives key-based masking); pass None at the root.
 pub fn mask_value(value: &Value, key_hint: Option<&str>) -> Value {
@@ -286,6 +331,41 @@ mod tests {
         );
         let v = serde_json::json!({ "url": "https://bob:hunter2pass@x.dev/mcp" });
         assert!(!mask_value(&v, None).to_string().contains("hunter2"));
+    }
+
+    #[test]
+    fn mask_command_masks_secret_args() {
+        // Flag followed by a separate value.
+        assert_eq!(
+            mask_command("npx -y srv --api-key abc123plain --port 80"),
+            "npx -y srv --api-key •••• --port 80"
+        );
+        // --flag=value form.
+        assert_eq!(mask_command("srv --token=abc123plain"), "srv --token=••••");
+        // KEY=value env-style assignment.
+        assert_eq!(
+            mask_command("env GITHUB_TOKEN=abc123plain srv"),
+            "env GITHUB_TOKEN=•••• srv"
+        );
+        // Token-shaped positional arg.
+        assert_eq!(
+            mask_command("srv ghp_abcdefghijklmnopqrst"),
+            "srv ghp••••••(24)"
+        );
+        // Embedded URL credentials.
+        assert_eq!(
+            mask_command("srv --url https://u:p4ss@x.dev"),
+            "srv --url https://u:••••@x.dev"
+        );
+        // Harmless commands pass through.
+        assert_eq!(
+            mask_command("npx -y @scope/mcp --port 80"),
+            "npx -y @scope/mcp --port 80"
+        );
+        assert_eq!(
+            mask_command("uvx srv --key-file ./k.pem"),
+            "uvx srv --key-file ./k.pem"
+        );
     }
 
     #[test]

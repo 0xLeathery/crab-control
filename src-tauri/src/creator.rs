@@ -176,7 +176,7 @@ pub fn mcp_add_display(spec: &McpAddSpec) -> String {
         out.push(tok.clone());
         i += 1;
     }
-    out.join(" ")
+    crate::secrets::mask_command(&out.join(" "))
 }
 
 /// Add an MCP server via the CLI.
@@ -288,6 +288,34 @@ mod tests {
         assert!(v.get("settings").is_some());
         assert!(!text.contains("ib_5c7753"), "snapshot leaked a raw secret!");
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn mcp_add_display_masks_secret_args_and_url_credentials() {
+        let stdio = McpAddSpec {
+            name: "srv".into(),
+            transport: "stdio".into(),
+            target: "npx".into(),
+            scope: "user".into(),
+            args: vec!["gh-mcp".into(), "--token".into(), "abc123plain".into()],
+            env: vec![],
+            headers: vec![],
+        };
+        let d = mcp_add_display(&stdio);
+        assert!(!d.contains("abc123plain"), "leaked: {d}");
+        assert!(d.ends_with("-- npx gh-mcp --token ••••"), "{d}");
+
+        let http = McpAddSpec {
+            name: "h".into(),
+            transport: "http".into(),
+            target: "https://bob:hunter2pass@x.dev/mcp".into(),
+            scope: "user".into(),
+            args: vec![],
+            env: vec![],
+            headers: vec![],
+        };
+        let d = mcp_add_display(&http);
+        assert!(!d.contains("hunter2"), "leaked: {d}");
     }
 
     #[test]

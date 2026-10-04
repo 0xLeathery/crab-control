@@ -12,7 +12,7 @@ use std::sync::OnceLock;
 use serde_json::Value;
 
 use crate::model::*;
-use crate::secrets::{mask_str, mask_url};
+use crate::secrets::{mask_command, mask_url};
 use crate::util::{claude_dir, home, read_json};
 
 static CLAUDE_BIN: OnceLock<Option<PathBuf>> = OnceLock::new();
@@ -208,7 +208,7 @@ fn mask_target(target: &str) -> String {
     if t.starts_with("http") {
         mask_url(t)
     } else {
-        t.to_string()
+        mask_command(t)
     }
 }
 
@@ -312,14 +312,11 @@ fn servers_from_map(map: &Value, scope: &str, source: &str, out: &mut Vec<McpSer
         } else {
             (typ.unwrap_or_else(|| "unknown".to_string()), None)
         };
-        // Mask any secret-looking command tokens defensively.
         let target = target.map(|t| {
             if t.starts_with("http") {
                 t
-            } else if crate::secrets::looks_like_secret(&t) {
-                mask_str(&t)
             } else {
-                t
+                mask_command(&t)
             }
         });
         out.push(McpServer {
@@ -396,4 +393,36 @@ pub fn get_mcp(scope: &Scope) -> Vec<McpServer> {
 
     servers.sort_by_key(|a| a.name.to_lowercase());
     servers
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn file_defined_stdio_args_are_masked() {
+        let map = json!({
+            "gh": { "command": "npx", "args": ["-y", "gh-mcp", "--token", "abc123plain"] },
+            "pat": { "command": "srv", "args": ["ghp_abcdefghijklmnopqrst"] }
+        });
+        let mut out = Vec::new();
+        servers_from_map(&map, "user", "test", &mut out);
+        let targets: Vec<String> = out.iter().filter_map(|s| s.target.clone()).collect();
+        let joined = targets.join(" | ");
+        assert!(!joined.contains("abc123plain"), "leaked: {joined}");
+        assert!(!joined.contains("abcdefghijklmnopqrst"), "leaked: {joined}");
+        assert!(joined.contains("npx -y gh-mcp --token ••••"), "{joined}");
+    }
+
+    #[test]
+    fn cli_list_stdio_targets_are_masked() {
+        let servers = parse_list("gh: npx -y gh-mcp --api-key abc123plain - ✓ Connected\n");
+        assert_eq!(servers.len(), 1);
+        assert_eq!(
+            servers[0].target.as_deref(),
+            Some("npx -y gh-mcp --api-key ••••")
+        );
+        assert_eq!(servers[0].status.as_deref(), Some("Connected"));
+    }
 }
