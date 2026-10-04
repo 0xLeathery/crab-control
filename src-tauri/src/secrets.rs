@@ -102,11 +102,13 @@ pub fn mask_str(s: &str) -> String {
     format!("{head}••••••({n})")
 }
 
-/// Mask secret-looking query parameters inside a URL string in place.
+/// Mask credentials embedded in a URL: userinfo (`user:pass@`) and
+/// secret-looking query parameters.
 /// e.g. https://x/api?key=ib_abc&q=1  ->  https://x/api?key=••••&q=1
 pub fn mask_url(url: &str) -> String {
+    let url = mask_userinfo(url);
     let Some(qpos) = url.find('?') else {
-        return url.to_string();
+        return url;
     };
     let (base, query) = url.split_at(qpos);
     let query = &query[1..]; // drop '?'
@@ -130,6 +132,24 @@ pub fn mask_url(url: &str) -> String {
     format!("{base}?{out}")
 }
 
+/// `scheme://user:pass@host` -> `scheme://user:••••@host`; a lone
+/// `scheme://token@host` is masked entirely.
+fn mask_userinfo(url: &str) -> String {
+    let Some(start) = url.find("://").map(|i| i + 3) else {
+        return url.to_string();
+    };
+    let rest = &url[start..];
+    let authority_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let Some(at) = rest[..authority_end].rfind('@') else {
+        return url.to_string();
+    };
+    let masked = match rest[..at].split_once(':') {
+        Some((user, _)) => format!("{user}:••••"),
+        None => "••••".to_string(),
+    };
+    format!("{}{masked}{}", &url[..start], &rest[at..])
+}
+
 /// Recursively mask a JSON value for safe display. `key_hint` is the key under
 /// which this value sits (drives key-based masking); pass None at the root.
 pub fn mask_value(value: &Value, key_hint: Option<&str>) -> Value {
@@ -138,7 +158,7 @@ pub fn mask_value(value: &Value, key_hint: Option<&str>) -> Value {
             let secret_key = key_hint.map(is_secret_key).unwrap_or(false);
             if secret_key || looks_like_secret(s) {
                 Value::String(mask_str(s))
-            } else if s.contains("://") && s.contains('?') {
+            } else if s.contains("://") {
                 Value::String(mask_url(s))
             } else {
                 Value::String(s.clone())
@@ -247,6 +267,25 @@ mod tests {
             "https://x.dev/api?q=••••"
         );
         assert_eq!(mask_url("https://x.dev/api"), "https://x.dev/api");
+    }
+
+    #[test]
+    fn mask_url_masks_userinfo_credentials() {
+        assert_eq!(
+            mask_url("https://bob:hunter2pass@x.dev/mcp"),
+            "https://bob:••••@x.dev/mcp"
+        );
+        assert_eq!(
+            mask_url("https://tok_abcdefghijklmnop@x.dev/mcp?q=1"),
+            "https://••••@x.dev/mcp?q=1"
+        );
+        // An @ in the path or query isn't userinfo.
+        assert_eq!(
+            mask_url("https://x.dev/u/@me?q=a@b"),
+            "https://x.dev/u/@me?q=a@b"
+        );
+        let v = serde_json::json!({ "url": "https://bob:hunter2pass@x.dev/mcp" });
+        assert!(!mask_value(&v, None).to_string().contains("hunter2"));
     }
 
     #[test]
