@@ -17,8 +17,8 @@ cd src-tauri && cargo clippy --all-targets -- -D warnings  # lint (must be clean
 cd src-tauri && cargo test                                  # Rust unit tests
 ```
 
-GitHub Actions runners are currently disabled, so `ci.yml` doesn't run. Run
-the commands above locally before every push — they're the only gate.
+`ci.yml` runs lint, tests, build, `cargo fmt --check`, clippy and `cargo test`
+on every PR. Run the commands above locally before pushing so CI stays green.
 
 Linux builds need the Tauri system libs (`libwebkit2gtk-4.1-dev`,
 `libgtk-3-dev`, `librsvg2-dev`, `libappindicator3-dev`, `patchelf`).
