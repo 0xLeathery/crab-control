@@ -42,7 +42,8 @@ Linux builds need the Tauri system libs (`libwebkit2gtk-4.1-dev`,
 2. Wrap it as a `#[tauri::command]` in `lib.rs` and register it in the
    `invoke_handler` list.
 3. Add a typed wrapper in `src/api.ts` (types mirror `model.rs`).
-4. Use it from the panel in `src/panels.tsx` (or `create.tsx` / `editor.tsx`).
+4. Use it from the domain's panel in `src/panels/` (or `edit-panels.tsx`,
+   `create.tsx`, `editor.tsx`). Put any logic worth testing in `helpers.ts`.
 
 ## Test-driven development (required)
 
