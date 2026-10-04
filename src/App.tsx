@@ -30,6 +30,7 @@ type DomainId =
   | "agents"
   | "commands"
   | "skills"
+  | "memory"
   | "permissions"
   | "hooks";
 
@@ -41,6 +42,7 @@ const DOMAINS: { id: DomainId; label: string; icon: any }[] = [
   { id: "agents", label: "Agents", icon: "agents" },
   { id: "commands", label: "Commands", icon: "commands" },
   { id: "skills", label: "Skills", icon: "skills" },
+  { id: "memory", label: "Memory", icon: "memory" },
   { id: "permissions", label: "Permissions", icon: "lock" },
   { id: "hooks", label: "Hooks", icon: "hooks" },
 ];
@@ -98,7 +100,7 @@ export default function App() {
     api
       .readItems(s)
       .then(setItems)
-      .catch(() => setItems({ agents: [], commands: [], skills: [] }));
+      .catch(() => setItems({ agents: [], commands: [], skills: [], memory: [] }));
     api
       .readPlugins(s)
       .then(setPlugins)
@@ -138,7 +140,7 @@ export default function App() {
     api
       .readItems(scope)
       .then(setItems)
-      .catch(() => setItems({ agents: [], commands: [], skills: [] }));
+      .catch(() => setItems({ agents: [], commands: [], skills: [], memory: [] }));
   }, [scope]);
 
   // Lazy-load MCP the first time its panel needs it.
@@ -177,6 +179,7 @@ export default function App() {
     agents: items ? items.agents.length : null,
     commands: items ? items.commands.length : null,
     skills: items ? items.skills.length : null,
+    memory: items ? items.memory.length : null,
     permissions: settings ? permissionRules(settings.files).length : null,
     hooks: hooks ? hooks.length : null,
   };
@@ -210,6 +213,9 @@ export default function App() {
     );
     items?.skills.forEach((i) =>
       out.push({ kind: "skill", name: i.name, hint: i.source, domain: "skills", filter: i.name })
+    );
+    items?.memory.forEach((i) =>
+      out.push({ kind: "memory", name: i.name, hint: i.source, domain: "memory", filter: i.name })
     );
     hooks?.forEach((h) =>
       out.push({
@@ -362,6 +368,16 @@ export default function App() {
               onReload={reloadItems}
             />
           )}
+          {active === "memory" && (
+            <ItemsPanel
+              title="Memory"
+              subtitle="CLAUDE.md files and rules loaded into Claude's context. Read-only."
+              items={items?.memory ?? null}
+              filter={filter}
+              scope={scope}
+              onReload={reloadItems}
+            />
+          )}
           {active === "permissions" && (
             <PermissionsPanel
               data={settings}
@@ -507,7 +523,7 @@ function CommandPalette({
       <div className="palette" onClick={(e) => e.stopPropagation()}>
         <input
           ref={inputRef}
-          placeholder="Search settings, servers, plugins, agents, commands, skills, hooks…"
+          placeholder="Search settings, servers, plugins, agents, commands, skills, memory, hooks…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={onKey}

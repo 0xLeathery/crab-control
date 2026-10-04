@@ -197,11 +197,79 @@ fn plugin_roots() -> Vec<(String, PathBuf)> {
     out
 }
 
+/// First non-empty body line (after any frontmatter), minus heading marks —
+/// a stand-in description for memory files, which rarely have frontmatter.
+fn first_line(text: &str) -> Option<String> {
+    let body = match text.trim_start().strip_prefix("---") {
+        Some(rest) => rest.find("\n---").map_or("", |end| &rest[end + 4..]),
+        None => text,
+    };
+    body.lines()
+        .map(|l| l.trim().trim_start_matches('#').trim())
+        .find(|l| !l.is_empty())
+        .map(String::from)
+}
+
+fn memory_item(path: &Path, name: String, source: &str) -> Item {
+    let text = read_text(path).unwrap_or_default();
+    let description = parse_frontmatter(&text).1.or_else(|| first_line(&text));
+    Item {
+        name,
+        description,
+        source: source.to_string(),
+        path: path.display().to_string(),
+        display_path: tildify(path),
+        preview: Some(preview_of(&text)),
+    }
+}
+
+/// `CLAUDE.md` memory files and `rules/` directories that Claude Code loads
+/// into context: user-level always, project-level when a project is in scope.
+pub fn scan_memory(cdir: &Path, project: Option<&Path>) -> Vec<Item> {
+    let mut out = Vec::new();
+    push_memory(&mut out, cdir, "CLAUDE.md", "user");
+    push_rules(&mut out, cdir, "rules", "user");
+    if let Some(p) = project {
+        push_memory(&mut out, p, "CLAUDE.md", "project");
+        push_memory(&mut out, p, ".claude/CLAUDE.md", "project");
+        push_rules(&mut out, p, ".claude/rules", "project");
+        push_memory(&mut out, p, "CLAUDE.local.md", "project-local");
+    }
+    out
+}
+
+fn push_memory(out: &mut Vec<Item>, base: &Path, rel: &str, source: &str) {
+    let path = base.join(rel);
+    if path.is_file() {
+        out.push(memory_item(&path, rel.to_string(), source));
+    }
+}
+
+/// Every `*.md` under `base/rel`, named by its path relative to `base`.
+fn push_rules(out: &mut Vec<Item>, base: &Path, rel: &str, source: &str) {
+    let mut files = Vec::new();
+    collect_md(&base.join(rel), &mut files);
+    files.sort();
+    for f in files {
+        let name = f
+            .strip_prefix(base)
+            .unwrap_or(&f)
+            .to_string_lossy()
+            .replace('\\', "/");
+        out.push(memory_item(&f, name, source));
+    }
+}
+
 pub fn get_items(scope: &Scope) -> ItemsDomain {
     let cdir = claude_dir();
     let mut agents = Vec::new();
     let mut commands = Vec::new();
     let mut skills = Vec::new();
+    let project = match (&scope.kind, &scope.path) {
+        (ScopeKind::Project, Some(p)) => Some(PathBuf::from(p)),
+        _ => None,
+    };
+    let memory = scan_memory(&cdir, project.as_deref());
 
     // User scope (always shown).
     agents.extend(scan_md_dir(&cdir.join("agents"), "user"));
@@ -229,12 +297,78 @@ pub fn get_items(scope: &Scope) -> ItemsDomain {
         agents,
         commands,
         skills,
+        memory,
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn tmp(tag: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!(
+            "cc-items-{tag}-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    fn write(p: &Path, s: &str) {
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, s).unwrap();
+    }
+
+    #[test]
+    fn scans_user_and_project_memory_files() {
+        let root = tmp("memory");
+        let cdir = root.join("home/.claude");
+        let proj = root.join("proj");
+        write(&cdir.join("CLAUDE.md"), "# My global rules\nbe terse\n");
+        write(
+            &cdir.join("rules/rust.md"),
+            "---\ndescription: Rust style\n---\nuse clippy\n",
+        );
+        write(&proj.join("CLAUDE.md"), "Project notes\n");
+        write(&proj.join(".claude/CLAUDE.md"), "# Nested\n");
+        write(&proj.join("CLAUDE.local.md"), "\n\n## Personal\n");
+        write(&proj.join(".claude/rules/api/http.md"), "# HTTP rules\n");
+        write(&proj.join("README.md"), "not memory");
+
+        let items = scan_memory(&cdir, Some(&proj));
+        let got: Vec<(String, String, Option<String>)> = items
+            .iter()
+            .map(|i| (i.source.clone(), i.name.clone(), i.description.clone()))
+            .collect();
+        let d = |s: &str| Some(s.to_string());
+        assert_eq!(
+            got,
+            vec![
+                ("user".into(), "CLAUDE.md".into(), d("My global rules")),
+                ("user".into(), "rules/rust.md".into(), d("Rust style")),
+                ("project".into(), "CLAUDE.md".into(), d("Project notes")),
+                ("project".into(), ".claude/CLAUDE.md".into(), d("Nested")),
+                (
+                    "project".into(),
+                    ".claude/rules/api/http.md".into(),
+                    d("HTTP rules")
+                ),
+                (
+                    "project-local".into(),
+                    "CLAUDE.local.md".into(),
+                    d("Personal")
+                ),
+            ]
+        );
+        assert!(items[0].preview.as_deref().unwrap().contains("be terse"));
+
+        // Global scope: user files only.
+        assert_eq!(scan_memory(&cdir, None).len(), 2);
+        std::fs::remove_dir_all(&root).ok();
+    }
 
     fn fm(s: &str) -> (Option<String>, Option<String>) {
         parse_frontmatter(s)

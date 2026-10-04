@@ -999,7 +999,8 @@ export function ItemsPanel({
   items: Item[] | null;
   filter: string;
   scope: Scope;
-  kind: "agent" | "command" | "skill";
+  /** Omit for read-only lists (no "New" button). */
+  kind?: "agent" | "command" | "skill";
   onReload: () => void;
 }) {
   const [creating, setCreating] = useState(false);
@@ -1020,11 +1021,13 @@ export function ItemsPanel({
       <h1>{title}</h1>
       <div className="sub">{subtitle}</div>
 
-      <div className="toolbar">
-        <button className="btn primary" onClick={() => setCreating(true)}>
-          <Icon name="commands" size={13} /> &nbsp;New {kind} ({where})
-        </button>
-      </div>
+      {kind && (
+        <div className="toolbar">
+          <button className="btn primary" onClick={() => setCreating(true)}>
+            <Icon name="commands" size={13} /> &nbsp;New {kind} ({where})
+          </button>
+        </div>
+      )}
 
       {note && (
         <div className="okbar">
@@ -1043,7 +1046,7 @@ export function ItemsPanel({
         list.map((i) => <ItemRow key={i.path} item={i} />)
       )}
 
-      {creating && (
+      {creating && kind && (
         <NewItemModal
           scope={scope}
           kind={kind}
