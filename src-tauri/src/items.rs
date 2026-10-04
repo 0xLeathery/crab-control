@@ -9,7 +9,9 @@ use crate::util::{claude_dir, read_text, tildify};
 const PREVIEW_CAP: usize = 4000;
 
 /// Parse a leading `--- ... ---` YAML-ish frontmatter block for `name` and
-/// `description`. Intentionally tiny — no YAML dependency.
+/// `description`. Intentionally tiny — no YAML dependency — but handles the
+/// multi-line forms skills commonly use: `>` / `|` block scalars and plain
+/// values continued on indented lines.
 fn parse_frontmatter(text: &str) -> (Option<String>, Option<String>) {
     let trimmed = text.trim_start();
     if !trimmed.starts_with("---") {
@@ -19,18 +21,52 @@ fn parse_frontmatter(text: &str) -> (Option<String>, Option<String>) {
     let Some(end) = after.find("\n---") else {
         return (None, None);
     };
-    let block = &after[..end];
+    let lines: Vec<&str> = after[..end]
+        .lines()
+        .map(|l| l.trim_end_matches('\r'))
+        .collect();
     let mut name = None;
     let mut description = None;
-    for line in block.lines() {
-        let line = line.trim();
-        if let Some(rest) = line.strip_prefix("name:") {
-            name = Some(clean_value(rest));
-        } else if let Some(rest) = line.strip_prefix("description:") {
-            description = Some(clean_value(rest));
+    let mut i = 0;
+    while i < lines.len() {
+        let line = lines[i];
+        i += 1;
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        if line.starts_with([' ', '\t']) {
+            continue;
         }
+        // Indented (or blank) lines that follow belong to this key.
+        let mut cont = Vec::new();
+        while i < lines.len() && (lines[i].starts_with([' ', '\t']) || lines[i].trim().is_empty()) {
+            cont.push(lines[i].trim());
+            i += 1;
+        }
+        let slot = match key.trim() {
+            "name" => &mut name,
+            "description" => &mut description,
+            _ => continue,
+        };
+        *slot = Some(join_value(value.trim(), &cont));
     }
     (name, description)
+}
+
+fn join_value(value: &str, cont: &[&str]) -> String {
+    let parts = cont.iter().copied().filter(|l| !l.is_empty());
+    if value.starts_with('|') {
+        parts.collect::<Vec<_>>().join("\n")
+    } else if value.starts_with('>') {
+        parts.collect::<Vec<_>>().join(" ")
+    } else {
+        let joined = std::iter::once(value)
+            .chain(parts)
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+        clean_value(&joined)
+    }
 }
 
 fn clean_value(s: &str) -> String {
@@ -193,5 +229,59 @@ pub fn get_items(scope: &Scope) -> ItemsDomain {
         agents,
         commands,
         skills,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fm(s: &str) -> (Option<String>, Option<String>) {
+        parse_frontmatter(s)
+    }
+
+    #[test]
+    fn single_line_values() {
+        let (n, d) = fm("---\nname: review\ndescription: \"Reviews code\"\n---\nbody");
+        assert_eq!(n.as_deref(), Some("review"));
+        assert_eq!(d.as_deref(), Some("Reviews code"));
+    }
+
+    #[test]
+    fn no_frontmatter() {
+        assert_eq!(fm("# Just markdown"), (None, None));
+    }
+
+    #[test]
+    fn folded_block_description() {
+        let (n, d) = fm("---\nname: x\ndescription: >\n  First line\n  second line.\n---\n");
+        assert_eq!(n.as_deref(), Some("x"));
+        assert_eq!(d.as_deref(), Some("First line second line."));
+    }
+
+    #[test]
+    fn literal_block_description_keeps_newlines() {
+        let (_, d) = fm("---\ndescription: |-\n  Line one\n  Line two\nname: y\n---\n");
+        assert_eq!(d.as_deref(), Some("Line one\nLine two"));
+    }
+
+    #[test]
+    fn plain_multiline_continuation() {
+        let (_, d) =
+            fm("---\ndescription: Use when the user\n  asks for a review.\nname: z\n---\n");
+        assert_eq!(d.as_deref(), Some("Use when the user asks for a review."));
+    }
+
+    #[test]
+    fn quoted_value_spanning_lines() {
+        let (_, d) = fm("---\ndescription: \"Use when\n  reviewing.\"\n---\n");
+        assert_eq!(d.as_deref(), Some("Use when reviewing."));
+    }
+
+    #[test]
+    fn crlf_line_endings() {
+        let (n, d) = fm("---\r\nname: w\r\ndescription: >\r\n  a\r\n  b\r\n---\r\n");
+        assert_eq!(n.as_deref(), Some("w"));
+        assert_eq!(d.as_deref(), Some("a b"));
     }
 }
