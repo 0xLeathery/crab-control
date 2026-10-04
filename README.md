@@ -41,6 +41,10 @@ keyboard-driven.
   user and project, with previews (read-only).
 - **Plugins & marketplaces, agents, commands, skills, hooks.** Names, scopes,
   source paths, and previews — including everything contributed by plugins.
+- **Tips.** Checks your config against the Claude Code docs: secrets readable
+  by Claude, risky permission modes, inline secrets in a shared `.mcp.json`,
+  failing MCP servers, fragile hook paths, missing or overlong `CLAUDE.md`. Each
+  tip links the doc section it comes from.
 - **Scope picker.** Switch between Global and any recent project from
   `~/.claude.json`.
 - **⌘K / Ctrl-K command palette.** Jump to any setting, server, plugin, agent,

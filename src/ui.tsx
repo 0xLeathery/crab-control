@@ -11,6 +11,7 @@ type IconName =
   | "hooks"
   | "skills"
   | "memory"
+  | "tips"
   | "chevron"
   | "lock"
   | "search"
@@ -30,6 +31,7 @@ const PATHS: Record<IconName, string> = {
     "M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0",
   commands: "M4 17l6-6-6-6M12 19h8",
   hooks: "M18 6V4a2 2 0 00-2-2h0a2 2 0 00-2 2v10a4 4 0 11-8 0M18 6a3 3 0 11-6 0",
+  tips: "M9 18h6M10 21h4M12 3a6 6 0 00-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0012 3z",
   memory: "M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h7",
   skills: "M12 2l2.4 7.4H22l-6 4.5 2.3 7.1-6.3-4.6L5.7 21 8 14 2 9.4h7.6z",
   chevron: "M6 9l6 6 6-6",
