@@ -12,9 +12,12 @@ npm run build              # tsc typecheck + vite build
 npm test                   # frontend unit tests (Vitest)
 npm run app                # launch the desktop app (dev)
 cd src-tauri && cargo fmt                                   # format Rust
-cd src-tauri && cargo clippy --all-targets -- -D warnings  # lint (CI enforces)
+cd src-tauri && cargo clippy --all-targets -- -D warnings  # lint (must be clean)
 cd src-tauri && cargo test                                  # Rust unit tests
 ```
+
+GitHub Actions runners are currently disabled, so `ci.yml` doesn't run. Run
+the commands above locally before every push — they're the only gate.
 
 Linux builds need the Tauri system libs (`libwebkit2gtk-4.1-dev`,
 `libgtk-3-dev`, `librsvg2-dev`, `libappindicator3-dev`, `patchelf`).
