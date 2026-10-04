@@ -52,8 +52,11 @@ keyboard-driven.
 
 ### Change things safely
 - **Raw-JSON editor** per settings file, with live validation.
-- **Schema-driven view** — settings grouped by domain from the official JSON
-  schema, with descriptions; booleans toggle and enums use a dropdown.
+- **Edit every setting.** Every key in the official schema (plus any unknown
+  keys you've set), grouped by domain with descriptions: toggles for booleans,
+  dropdowns for enums, validated inputs for strings and numbers, a JSON editor
+  for objects and arrays, and Unset. Pick which layer changes are written to.
+  Values containing masked secrets stay read-only here (use the raw editor).
 - **Plugins** — enable/disable.
 - **MCP** — add a server, remove a server, enable/disable project servers.
 - **Permissions** — add or remove `allow` / `deny` / `ask` rules in any
