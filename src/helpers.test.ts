@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { defaultWriteLayer, fmtTime, mcpScopeFlag, statusClass } from "./helpers";
+import {
+  defaultWriteLayer,
+  editableLayers,
+  fmtTime,
+  mcpScopeFlag,
+  permissionRules,
+  statusClass,
+} from "./helpers";
 
 describe("defaultWriteLayer", () => {
   it("writes to the project layer in project scope, else user", () => {
@@ -63,5 +70,40 @@ describe("bugs", () => {
     ["Project config (shared via .mcp.json)", "project"],
   ])("%s → %s", (scope, flag) => {
     expect(mcpScopeFlag({ scope })).toBe(flag);
+  });
+});
+
+describe("permissionRules", () => {
+  const file = (layer: string, readOnly: boolean, content: unknown) =>
+    ({ layer, readOnly, content, label: layer, path: "", displayPath: "", present: true, error: null }) as any;
+
+  it("flattens allow/deny/ask per layer in file order", () => {
+    const files = [
+      file("user", false, { permissions: { deny: ["Read(.env)"], allow: ["Bash(ls)", "WebFetch"] } }),
+      file("project", false, { theme: "dark" }),
+      file("managed", true, { permissions: { ask: ["Bash(rm:*)"] } }),
+      file("project-local", false, null),
+    ];
+    expect(permissionRules(files)).toEqual([
+      { layer: "user", list: "allow", rule: "Bash(ls)", readOnly: false },
+      { layer: "user", list: "allow", rule: "WebFetch", readOnly: false },
+      { layer: "user", list: "deny", rule: "Read(.env)", readOnly: false },
+      { layer: "managed", list: "ask", rule: "Bash(rm:*)", readOnly: true },
+    ]);
+  });
+
+  it("ignores malformed lists", () => {
+    expect(permissionRules([file("user", false, { permissions: { allow: "Bash" } })])).toEqual([]);
+  });
+});
+
+describe("editableLayers", () => {
+  it("lists layers that are not read-only", () => {
+    const files = [
+      { layer: "user", readOnly: false },
+      { layer: "managed", readOnly: true },
+      { layer: "project", readOnly: false },
+    ] as any;
+    expect(editableLayers(files)).toEqual(["user", "project"]);
   });
 });

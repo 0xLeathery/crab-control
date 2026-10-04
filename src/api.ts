@@ -67,6 +67,8 @@ export interface HookEntry {
   hookType: string;
   command?: string | null;
   source: Layer;
+  groupIndex: number;
+  hookIndex: number;
 }
 
 export interface McpServer {
@@ -230,6 +232,30 @@ export const api = {
     invoke<MutationPreview>("preview_plugin_toggle", { scope, fullId, enabled }),
   previewMcpToggle: (scope: Scope, name: string, enabled: boolean) =>
     invoke<MutationPreview>("preview_mcp_toggle", { scope, name, enabled }),
+  previewPermissionRule: (
+    scope: Scope,
+    layer: Layer,
+    list: "allow" | "deny" | "ask",
+    rule: string,
+    add: boolean
+  ) => invoke<MutationPreview>("preview_permission_rule", { scope, layer, list, rule, add }),
+  previewHookAdd: (
+    scope: Scope,
+    layer: Layer,
+    event: string,
+    matcher: string | null,
+    command: string,
+    timeout: number | null
+  ) =>
+    invoke<MutationPreview>("preview_hook_add", { scope, layer, event, matcher, command, timeout }),
+  previewHookRemove: (
+    scope: Scope,
+    layer: Layer,
+    event: string,
+    groupIndex: number,
+    hookIndex: number
+  ) =>
+    invoke<MutationPreview>("preview_hook_remove", { scope, layer, event, groupIndex, hookIndex }),
   mcpRemove: (name: string, scopeFlag: string) =>
     invoke<string>("mcp_remove", { name, scopeFlag }),
   // Phase 3: creation flows + export
