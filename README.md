@@ -37,6 +37,8 @@ keyboard-driven.
 - **MCP servers.** Live status straight from `claude mcp list/get`, merged with
   file-defined servers (`.mcp.json`, `~/.claude.json`). Transport, scope, and
   status at a glance.
+- **Memory.** `CLAUDE.md` / `CLAUDE.local.md` files and `rules/` directories,
+  user and project, with previews (read-only).
 - **Plugins & marketplaces, agents, commands, skills, hooks.** Names, scopes,
   source paths, and previews — including everything contributed by plugins.
 - **Scope picker.** Switch between Global and any recent project from

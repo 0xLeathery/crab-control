@@ -59,6 +59,7 @@ export interface ItemsDomain {
   agents: Item[];
   commands: Item[];
   skills: Item[];
+  memory: Item[];
 }
 
 export interface HookEntry {

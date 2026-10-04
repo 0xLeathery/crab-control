@@ -104,6 +104,8 @@ pub struct ItemsDomain {
     pub agents: Vec<Item>,
     pub commands: Vec<Item>,
     pub skills: Vec<Item>,
+    /// CLAUDE.md files and rules/ directories (read-only).
+    pub memory: Vec<Item>,
 }
 
 /// One configured hook (from a settings layer's `hooks` block).
