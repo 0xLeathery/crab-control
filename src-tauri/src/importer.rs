@@ -14,8 +14,6 @@ use crate::model::{Layer, Scope};
 use crate::settings::layer_path;
 use crate::util::{home, tildify};
 
-const MASK_CHAR: char = '•';
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SnapshotRef {
@@ -66,17 +64,6 @@ pub fn list_snapshots() -> Vec<SnapshotRef> {
     }
     out.sort_by(|a, b| b.name.cmp(&a.name));
     out
-}
-
-/// True if any string anywhere in the value contains the mask character — i.e.
-/// the value carries a redacted secret and must not be written back.
-fn contains_mask(v: &Value) -> bool {
-    match v {
-        Value::String(s) => s.contains(MASK_CHAR),
-        Value::Array(a) => a.iter().any(contains_mask),
-        Value::Object(m) => m.values().any(contains_mask),
-        _ => false,
-    }
 }
 
 fn pretty(v: &Value) -> String {
@@ -144,7 +131,7 @@ pub fn preview_import(scope: &Scope, path: &str) -> Result<ImportPlan, String> {
                 if k == "$schema" {
                     continue;
                 }
-                if contains_mask(v) {
+                if crate::secrets::contains_mask(v) {
                     file_skipped.push(k.clone()); // never write a masked secret
                     continue;
                 }
