@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use serde_json::Value;
 
 use crate::model::*;
-use crate::secrets::mask_value;
+use crate::secrets::{mask_command, mask_value};
 use crate::util::{claude_dir, read_json, tildify};
 
 /// Managed/enterprise settings path for the current OS (read-only).
@@ -158,56 +158,96 @@ fn compute_effective(files: &[LayerFile]) -> Vec<EffectiveSetting> {
 }
 
 /// Hooks defined across settings layers, flattened for display.
-pub fn get_hooks(scope: &Scope) -> Vec<HookEntry> {
-    let domain = get_settings(scope);
+/// Hooks declared in one settings file. `hooks.<Event>` is an array of
+/// `{ matcher?, hooks: [{ type, command }] }`; commands are masked.
+pub fn hooks_in(content: &Value, layer: Layer) -> Vec<HookEntry> {
     let mut entries = Vec::new();
-
-    for file in &domain.files {
-        let Some(Value::Object(map)) = &file.content else {
+    let Some(Value::Object(hooks)) = content.get("hooks") else {
+        return entries;
+    };
+    for (event, groups) in hooks {
+        let Some(groups) = groups.as_array() else {
             continue;
         };
-        let Some(Value::Object(hooks)) = map.get("hooks") else {
-            continue;
-        };
-        for (event, matchers) in hooks {
-            // hooks.<Event> is an array of { matcher?, hooks: [{ type, command }] }
-            let Some(arr) = matchers.as_array() else {
-                continue;
+        for (group_index, group) in groups.iter().enumerate() {
+            let matcher = group
+                .get("matcher")
+                .and_then(|m| m.as_str())
+                .map(String::from);
+            let entry = |hook_index, hook_type: &str, command: Option<String>| HookEntry {
+                event: event.clone(),
+                matcher: matcher.clone(),
+                hook_type: hook_type.to_string(),
+                command: command.map(|c| mask_command(&c)),
+                source: layer,
+                group_index,
+                hook_index,
             };
-            for entry in arr {
-                let matcher = entry
-                    .get("matcher")
-                    .and_then(|m| m.as_str())
-                    .map(|s| s.to_string());
-                let inner = entry.get("hooks").and_then(|h| h.as_array());
-                if let Some(list) = inner {
-                    for h in list {
-                        entries.push(HookEntry {
-                            event: event.clone(),
-                            matcher: matcher.clone(),
-                            hook_type: h
-                                .get("type")
-                                .and_then(|t| t.as_str())
-                                .unwrap_or("command")
-                                .to_string(),
-                            command: h
-                                .get("command")
-                                .and_then(|c| c.as_str())
-                                .map(|s| s.to_string()),
-                            source: file.layer,
-                        });
+            match group.get("hooks").and_then(|h| h.as_array()) {
+                Some(list) => {
+                    for (hook_index, h) in list.iter().enumerate() {
+                        entries.push(entry(
+                            hook_index,
+                            h.get("type").and_then(|t| t.as_str()).unwrap_or("command"),
+                            h.get("command").and_then(|c| c.as_str()).map(String::from),
+                        ));
                     }
-                } else {
-                    entries.push(HookEntry {
-                        event: event.clone(),
-                        matcher: matcher.clone(),
-                        hook_type: "unknown".to_string(),
-                        command: None,
-                        source: file.layer,
-                    });
                 }
+                None => entries.push(entry(0, "unknown", None)),
             }
         }
     }
     entries
+}
+
+pub fn get_hooks(scope: &Scope) -> Vec<HookEntry> {
+    let domain = get_settings(scope);
+    let mut entries = Vec::new();
+    for file in &domain.files {
+        if let Some(content) = &file.content {
+            entries.extend(hooks_in(content, file.layer));
+        }
+    }
+    entries
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hooks_in_reports_positions_and_masks_commands() {
+        let v: Value = serde_json::from_str(
+            r#"{"hooks":{"PostToolUse":[
+                {"matcher":"Edit","hooks":[
+                    {"type":"command","command":"fmt.sh"},
+                    {"type":"command","command":"curl -s https://x.dev --token abc123plain"}]},
+                {"matcher":"Write","hooks":[{"type":"command","command":"w.sh"}]}]}}"#,
+        )
+        .unwrap();
+        let hooks = hooks_in(&v, Layer::User);
+        let got: Vec<(usize, usize, Option<String>, Option<String>)> = hooks
+            .iter()
+            .map(|h| {
+                (
+                    h.group_index,
+                    h.hook_index,
+                    h.matcher.clone(),
+                    h.command.clone(),
+                )
+            })
+            .collect();
+        let s = |x: &str| Some(x.to_string());
+        assert_eq!(
+            got,
+            vec![
+                (0, 0, s("Edit"), s("fmt.sh")),
+                (0, 1, s("Edit"), s("curl -s https://x.dev --token ••••")),
+                (1, 0, s("Write"), s("w.sh")),
+            ]
+        );
+        assert!(hooks
+            .iter()
+            .all(|h| h.event == "PostToolUse" && h.source == Layer::User));
+    }
 }

@@ -129,6 +129,40 @@ fn preview_plugin_toggle(
 }
 
 #[tauri::command]
+fn preview_permission_rule(
+    scope: Scope,
+    layer: Layer,
+    list: String,
+    rule: String,
+    add: bool,
+) -> Result<edits::MutationPreview, String> {
+    edits::preview_permission_rule(&scope, layer, &list, &rule, add)
+}
+
+#[tauri::command]
+fn preview_hook_add(
+    scope: Scope,
+    layer: Layer,
+    event: String,
+    matcher: Option<String>,
+    command: String,
+    timeout: Option<u64>,
+) -> Result<edits::MutationPreview, String> {
+    edits::preview_hook_add(&scope, layer, &event, matcher, &command, timeout)
+}
+
+#[tauri::command]
+fn preview_hook_remove(
+    scope: Scope,
+    layer: Layer,
+    event: String,
+    group_index: usize,
+    hook_index: usize,
+) -> Result<edits::MutationPreview, String> {
+    edits::preview_hook_remove(&scope, layer, &event, group_index, hook_index)
+}
+
+#[tauri::command]
 fn preview_mcp_toggle(
     scope: Scope,
     name: String,
@@ -210,6 +244,9 @@ pub fn run() {
             preview_remove_setting,
             preview_plugin_toggle,
             preview_mcp_toggle,
+            preview_permission_rule,
+            preview_hook_add,
+            preview_hook_remove,
             mcp_remove,
             create_item,
             mcp_add_preview,

@@ -115,6 +115,10 @@ pub struct HookEntry {
     pub hook_type: String,
     pub command: Option<String>,
     pub source: Layer,
+    /// Position within `hooks.<event>` / the group's `hooks` list, so the UI
+    /// can target this hook for removal.
+    pub group_index: usize,
+    pub hook_index: usize,
 }
 
 /// An MCP server from any source.
