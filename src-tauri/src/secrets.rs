@@ -102,11 +102,13 @@ pub fn mask_str(s: &str) -> String {
     format!("{head}••••••({n})")
 }
 
-/// Mask secret-looking query parameters inside a URL string in place.
+/// Mask credentials embedded in a URL: userinfo (`user:pass@`) and
+/// secret-looking query parameters.
 /// e.g. https://x/api?key=ib_abc&q=1  ->  https://x/api?key=••••&q=1
 pub fn mask_url(url: &str) -> String {
+    let url = mask_userinfo(url);
     let Some(qpos) = url.find('?') else {
-        return url.to_string();
+        return url;
     };
     let (base, query) = url.split_at(qpos);
     let query = &query[1..]; // drop '?'
@@ -130,6 +132,24 @@ pub fn mask_url(url: &str) -> String {
     format!("{base}?{out}")
 }
 
+/// `scheme://user:pass@host` -> `scheme://user:••••@host`; a lone
+/// `scheme://token@host` is masked entirely.
+fn mask_userinfo(url: &str) -> String {
+    let Some(start) = url.find("://").map(|i| i + 3) else {
+        return url.to_string();
+    };
+    let rest = &url[start..];
+    let authority_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let Some(at) = rest[..authority_end].rfind('@') else {
+        return url.to_string();
+    };
+    let masked = match rest[..at].split_once(':') {
+        Some((user, _)) => format!("{user}:••••"),
+        None => "••••".to_string(),
+    };
+    format!("{}{masked}{}", &url[..start], &rest[at..])
+}
+
 /// Recursively mask a JSON value for safe display. `key_hint` is the key under
 /// which this value sits (drives key-based masking); pass None at the root.
 pub fn mask_value(value: &Value, key_hint: Option<&str>) -> Value {
@@ -138,7 +158,7 @@ pub fn mask_value(value: &Value, key_hint: Option<&str>) -> Value {
             let secret_key = key_hint.map(is_secret_key).unwrap_or(false);
             if secret_key || looks_like_secret(s) {
                 Value::String(mask_str(s))
-            } else if s.contains("://") && s.contains('?') {
+            } else if s.contains("://") {
                 Value::String(mask_url(s))
             } else {
                 Value::String(s.clone())
@@ -165,5 +185,134 @@ pub fn mask_value(value: &Value, key_hint: Option<&str>) -> Value {
             Value::Object(out)
         }
         other => other.clone(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn forbidden_files_match_case_insensitively() {
+        assert!(is_forbidden_file(".credentials.json"));
+        assert!(is_forbidden_file("Credentials.JSON"));
+        assert!(!is_forbidden_file("settings.json"));
+    }
+
+    #[test]
+    fn secret_key_names() {
+        for k in [
+            "API_KEY",
+            "apiKey",
+            "GITHUB_TOKEN",
+            "client_secret",
+            "Authorization",
+            "key",
+            "aws_access_key",
+            "key_id",
+        ] {
+            assert!(is_secret_key(k), "{k} should be secret");
+        }
+        for k in [
+            "publicKey",
+            "keybindings",
+            "hotkey",
+            "model",
+            "theme",
+            "command",
+        ] {
+            assert!(!is_secret_key(k), "{k} should not be secret");
+        }
+    }
+
+    #[test]
+    fn secret_looking_values() {
+        for v in [
+            "sk-ant-abcdefghijklmnop",
+            "ghp_abcdefghijklmnopqrst",
+            "AKIAABCDEFGHIJKLMNOP",
+            "Bearer abcdefghijklmnop",
+            "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijklmnop",
+        ] {
+            assert!(looks_like_secret(v), "{v} should look secret");
+        }
+        for v in [
+            "sk-short",
+            "claude-sonnet-model-name",
+            "https://example.com/a.b.c",
+            "npx -y some-mcp-server",
+        ] {
+            assert!(!looks_like_secret(v), "{v} should not look secret");
+        }
+    }
+
+    #[test]
+    fn mask_str_hides_all_but_a_short_prefix() {
+        assert_eq!(mask_str(""), "");
+        assert_eq!(mask_str("abc"), "••••");
+        let m = mask_str("sk-ant-abcdefghijklmnop");
+        assert_eq!(m, "sk-••••••(23)");
+        assert!(!m.contains("abcdef"));
+    }
+
+    #[test]
+    fn mask_url_masks_secret_query_params_only() {
+        assert_eq!(
+            mask_url("https://x.dev/api?key=ib_abc&q=1"),
+            "https://x.dev/api?key=••••&q=1"
+        );
+        assert_eq!(
+            mask_url("https://x.dev/api?q=ghp_abcdefghijklmnopqrst"),
+            "https://x.dev/api?q=••••"
+        );
+        assert_eq!(mask_url("https://x.dev/api"), "https://x.dev/api");
+    }
+
+    #[test]
+    fn mask_url_masks_userinfo_credentials() {
+        assert_eq!(
+            mask_url("https://bob:hunter2pass@x.dev/mcp"),
+            "https://bob:••••@x.dev/mcp"
+        );
+        assert_eq!(
+            mask_url("https://tok_abcdefghijklmnop@x.dev/mcp?q=1"),
+            "https://••••@x.dev/mcp?q=1"
+        );
+        // An @ in the path or query isn't userinfo.
+        assert_eq!(
+            mask_url("https://x.dev/u/@me?q=a@b"),
+            "https://x.dev/u/@me?q=a@b"
+        );
+        let v = serde_json::json!({ "url": "https://bob:hunter2pass@x.dev/mcp" });
+        assert!(!mask_value(&v, None).to_string().contains("hunter2"));
+    }
+
+    #[test]
+    fn mask_value_masks_env_headers_and_secret_keys_recursively() {
+        let v = json!({
+            "model": "opus",
+            "env": { "DEBUG": "1", "ANTHROPIC_API_KEY": "sk-ant-abcdefghijklmnop" },
+            "mcpServers": {
+                "s": {
+                    "url": "https://x.dev/mcp?token=abc&v=2",
+                    "headers": { "Authorization": "Bearer abcdefghijklmnop" },
+                    "apiKey": "plainvalue"
+                }
+            },
+            "count": 3
+        });
+        let m = mask_value(&v, None);
+        let s = m.to_string();
+        assert_eq!(m["model"], "opus");
+        assert_eq!(m["count"], 3);
+        // Everything under env is masked, even harmless-looking values.
+        assert_eq!(m["env"]["DEBUG"], "••••");
+        assert!(!s.contains("abcdefghijklmnop"), "leaked: {s}");
+        assert!(!s.contains("plainvalue"), "leaked: {s}");
+        assert_eq!(
+            m["mcpServers"]["s"]["url"],
+            "https://x.dev/mcp?token=••••&v=2"
+        );
     }
 }
