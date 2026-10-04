@@ -53,6 +53,7 @@ export interface Item {
   path: string;
   displayPath: string;
   preview?: string | null;
+  lineCount?: number | null;
 }
 
 export interface ItemsDomain {
@@ -79,6 +80,7 @@ export interface McpServer {
   target?: string | null;
   status?: string | null;
   source: string;
+  inlineSecrets: boolean;
 }
 
 export interface Plugin {

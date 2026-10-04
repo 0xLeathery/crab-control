@@ -18,12 +18,15 @@ import {
   OverviewPanel,
   PluginsPanel,
   SettingsPanel,
+  TipsPanel,
 } from "./panels";
 import { HooksPanel, PermissionsPanel } from "./edit-panels";
 import { permissionRules } from "./helpers";
+import { configTips } from "./tips";
 
 type DomainId =
   | "overview"
+  | "tips"
   | "settings"
   | "mcp"
   | "plugins"
@@ -36,6 +39,7 @@ type DomainId =
 
 const DOMAINS: { id: DomainId; label: string; icon: any }[] = [
   { id: "overview", label: "Overview", icon: "overview" },
+  { id: "tips", label: "Tips", icon: "tips" },
   { id: "settings", label: "Settings", icon: "settings" },
   { id: "mcp", label: "MCP Servers", icon: "mcp" },
   { id: "plugins", label: "Plugins", icon: "plugins" },
@@ -145,7 +149,7 @@ export default function App() {
 
   // Lazy-load MCP the first time its panel needs it.
   useEffect(() => {
-    if (active === "mcp" && mcp === null && !mcpBusy) reloadMcp();
+    if ((active === "mcp" || active === "tips") && mcp === null && !mcpBusy) reloadMcp();
   }, [active, mcp, mcpBusy, reloadMcp]);
 
   const refreshSchema = useCallback(() => {
@@ -172,7 +176,13 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const tips = useMemo(
+    () => configTips({ scope, settings, hooks, mcp, items }),
+    [scope, settings, hooks, mcp, items]
+  );
+
   const counts: Record<string, number | null> = {
+    tips: settings && items && hooks ? tips.length : null,
     settings: settings ? settings.effective.length : null,
     mcp: mcp ? mcp.length : null,
     plugins: plugins ? plugins.plugins.length : null,
@@ -214,6 +224,9 @@ export default function App() {
     items?.skills.forEach((i) =>
       out.push({ kind: "skill", name: i.name, hint: i.source, domain: "skills", filter: i.name })
     );
+    tips.forEach((t) =>
+      out.push({ kind: "tip", name: t.title, hint: t.severity, domain: "tips", filter: t.title })
+    );
     items?.memory.forEach((i) =>
       out.push({ kind: "memory", name: i.name, hint: i.source, domain: "memory", filter: i.name })
     );
@@ -227,7 +240,7 @@ export default function App() {
       })
     );
     return out;
-  }, [settings, mcp, plugins, items, hooks]);
+  }, [settings, mcp, plugins, items, hooks, tips]);
 
   const scopeLabel =
     scope.kind === "global"
@@ -368,6 +381,7 @@ export default function App() {
               onReload={reloadItems}
             />
           )}
+          {active === "tips" && <TipsPanel tips={tips} mcpLoaded={mcp !== null} filter={filter} />}
           {active === "memory" && (
             <ItemsPanel
               title="Memory"

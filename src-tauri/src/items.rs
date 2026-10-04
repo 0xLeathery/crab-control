@@ -125,6 +125,7 @@ fn item_from_md(path: &Path, source: &str, name_fallback_from_stem: bool) -> Ite
         path: path.display().to_string(),
         display_path: tildify(path),
         preview: Some(preview_of(&text)),
+        line_count: None,
     }
 }
 
@@ -170,6 +171,7 @@ fn scan_skills_dir(dir: &Path, source: &str) -> Vec<Item> {
             path: skill_file.display().to_string(),
             display_path: tildify(&skill_file),
             preview: Some(preview_of(&text)),
+            line_count: None,
         });
     }
     items
@@ -220,6 +222,7 @@ fn memory_item(path: &Path, name: String, source: &str) -> Item {
         path: path.display().to_string(),
         display_path: tildify(path),
         preview: Some(preview_of(&text)),
+        line_count: Some(text.lines().count()),
     }
 }
 
@@ -364,6 +367,7 @@ mod tests {
             ]
         );
         assert!(items[0].preview.as_deref().unwrap().contains("be terse"));
+        assert_eq!(items[0].line_count, Some(2));
 
         // Global scope: user files only.
         assert_eq!(scan_memory(&cdir, None).len(), 2);
