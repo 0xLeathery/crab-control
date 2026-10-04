@@ -10,6 +10,7 @@ See `README.md` for features and the file map.
 npm ci                     # install frontend deps
 npm run build              # tsc typecheck + vite build
 npm test                   # frontend unit tests (Vitest)
+npm run lint               # ESLint (TypeScript + React hooks rules)
 npm run app                # launch the desktop app (dev)
 cd src-tauri && cargo fmt                                   # format Rust
 cd src-tauri && cargo clippy --all-targets -- -D warnings  # lint (must be clean)
