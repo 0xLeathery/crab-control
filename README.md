@@ -170,4 +170,5 @@ files; back up anything you care about.
 
 ## License
 
-No license is set yet — add one (e.g. MIT) before publishing.
+[MIT](LICENSE) © 2026 0xLeathery. The trademark notice above still applies:
+the license covers this project's code, not the Claude or Claude Code names.

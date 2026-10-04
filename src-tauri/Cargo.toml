@@ -2,7 +2,8 @@
 name = "crab-control"
 version = "0.1.2"
 description = "View and safely edit your Claude Code configuration"
-authors = ["you"]
+authors = ["0xLeathery"]
+license = "MIT"
 edition = "2021"
 
 [lib]
