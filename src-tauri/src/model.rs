@@ -96,6 +96,8 @@ pub struct Item {
     pub display_path: String,
     /// Raw text preview (frontmatter + body), capped in size.
     pub preview: Option<String>,
+    /// Total line count (memory files only; used for length guidance).
+    pub line_count: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -134,6 +136,9 @@ pub struct McpServer {
     pub target: Option<String>,
     pub status: Option<String>, // connected | needs auth | failed | pending | unknown
     pub source: String,         // where the definition lives
+    /// A file definition has literal `env`/`headers` values instead of
+    /// `${VAR}` expansion — risky in a shared `.mcp.json`.
+    pub inline_secrets: bool,
 }
 
 /// Installed plugin merged with its enabled state.

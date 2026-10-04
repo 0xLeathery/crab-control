@@ -243,6 +243,7 @@ fn parse_list(text: &str) -> Vec<McpServer> {
             target: Some(mask_target(target)),
             status,
             source: "claude mcp list".to_string(),
+            inline_secrets: false,
         });
     }
     servers
@@ -326,8 +327,21 @@ fn servers_from_map(map: &Value, scope: &str, source: &str, out: &mut Vec<McpSer
             target,
             status: None,
             source: source.to_string(),
+            inline_secrets: has_inline_values(def),
         });
     }
+}
+
+/// True if any `env` or `headers` value is a literal rather than built from
+/// `${VAR}` expansion (the docs' recommended way to keep secrets out of files).
+fn has_inline_values(def: &Value) -> bool {
+    ["env", "headers"].iter().any(|k| {
+        def.get(*k).and_then(Value::as_object).is_some_and(|m| {
+            m.values()
+                .filter_map(Value::as_str)
+                .any(|v| !v.trim().is_empty() && !v.contains("${"))
+        })
+    })
 }
 
 pub fn get_mcp(scope: &Scope) -> Vec<McpServer> {
@@ -346,7 +360,7 @@ pub fn get_mcp(scope: &Scope) -> Vec<McpServer> {
             })
         })
         .collect();
-    let mut servers: Vec<McpServer> = handles.into_iter().filter_map(|h| h.join().ok()).collect();
+    let servers: Vec<McpServer> = handles.into_iter().filter_map(|h| h.join().ok()).collect();
 
     // Merge file-defined servers the CLI didn't surface.
     let mut file_servers: Vec<McpServer> = Vec::new();
@@ -385,12 +399,18 @@ pub fn get_mcp(scope: &Scope) -> Vec<McpServer> {
     }
     let _ = claude_dir(); // (reserved for future file sources)
 
+    merge_servers(servers, file_servers)
+}
+
+/// Add file-defined servers the CLI didn't list; for ones it did, keep the
+/// CLI entry (live status) but carry over facts only the file knows.
+pub fn merge_servers(mut servers: Vec<McpServer>, file_servers: Vec<McpServer>) -> Vec<McpServer> {
     for fs in file_servers {
-        if !servers.iter().any(|s| s.name == fs.name) {
-            servers.push(fs);
+        match servers.iter_mut().find(|s| s.name == fs.name) {
+            Some(s) => s.inline_secrets |= fs.inline_secrets,
+            None => servers.push(fs),
         }
     }
-
     servers.sort_by_key(|a| a.name.to_lowercase());
     servers
 }
@@ -424,5 +444,41 @@ mod tests {
             Some("npx -y gh-mcp --api-key ••••")
         );
         assert_eq!(servers[0].status.as_deref(), Some("Connected"));
+    }
+
+    #[test]
+    fn flags_inline_secrets_but_not_env_expansion() {
+        let map = json!({
+            "plain": { "command": "srv", "env": { "API_KEY": "abc123" } },
+            "expanded": { "command": "srv", "env": { "API_KEY": "${API_KEY}" } },
+            "hdr_plain": { "type": "http", "url": "https://x.dev", "headers": { "Authorization": "Bearer xyz" } },
+            "hdr_expanded": { "type": "http", "url": "https://x.dev", "headers": { "Authorization": "Bearer ${TOKEN:-}" } },
+            "none": { "command": "srv" }
+        });
+        let mut out = Vec::new();
+        servers_from_map(&map, "project (.mcp.json)", ".mcp.json", &mut out);
+        let flag = |n: &str| out.iter().find(|s| s.name == n).unwrap().inline_secrets;
+        assert!(flag("plain"));
+        assert!(!flag("expanded"));
+        assert!(flag("hdr_plain"));
+        assert!(!flag("hdr_expanded"));
+        assert!(!flag("none"));
+    }
+
+    #[test]
+    fn merge_keeps_cli_entry_but_carries_file_facts() {
+        let mut file = Vec::new();
+        servers_from_map(
+            &json!({ "gh": { "command": "srv", "env": { "T": "x" } }, "extra": { "command": "e" } }),
+            "project (.mcp.json)",
+            ".mcp.json",
+            &mut file,
+        );
+        let cli = parse_list("gh: srv - ✓ Connected\n");
+        let merged = merge_servers(cli, file);
+        let gh = merged.iter().find(|s| s.name == "gh").unwrap();
+        assert_eq!(gh.status.as_deref(), Some("Connected"));
+        assert!(gh.inline_secrets);
+        assert_eq!(merged.len(), 2);
     }
 }
