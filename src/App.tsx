@@ -13,13 +13,14 @@ import {
 } from "./api";
 import { CrabMark, Icon } from "./ui";
 import {
-  HooksPanel,
   ItemsPanel,
   McpPanel,
   OverviewPanel,
   PluginsPanel,
   SettingsPanel,
 } from "./panels";
+import { HooksPanel, PermissionsPanel } from "./edit-panels";
+import { permissionRules } from "./helpers";
 
 type DomainId =
   | "overview"
@@ -30,6 +31,7 @@ type DomainId =
   | "commands"
   | "skills"
   | "memory"
+  | "permissions"
   | "hooks";
 
 const DOMAINS: { id: DomainId; label: string; icon: any }[] = [
@@ -41,6 +43,7 @@ const DOMAINS: { id: DomainId; label: string; icon: any }[] = [
   { id: "commands", label: "Commands", icon: "commands" },
   { id: "skills", label: "Skills", icon: "skills" },
   { id: "memory", label: "Memory", icon: "memory" },
+  { id: "permissions", label: "Permissions", icon: "lock" },
   { id: "hooks", label: "Hooks", icon: "hooks" },
 ];
 
@@ -121,6 +124,18 @@ export default function App() {
       .finally(() => setMcpBusy(false));
   }, [scope]);
 
+  // Permission and hook edits change settings files, which feed both views.
+  const reloadSettingsAndHooks = useCallback(() => {
+    api
+      .readSettings(scope)
+      .then(setSettings)
+      .catch(() => setSettings({ files: [], effective: [] }));
+    api
+      .readHooks(scope)
+      .then(setHooks)
+      .catch(() => setHooks([]));
+  }, [scope]);
+
   const reloadItems = useCallback(() => {
     api
       .readItems(scope)
@@ -165,6 +180,7 @@ export default function App() {
     commands: items ? items.commands.length : null,
     skills: items ? items.skills.length : null,
     memory: items ? items.memory.length : null,
+    permissions: settings ? permissionRules(settings.files).length : null,
     hooks: hooks ? hooks.length : null,
   };
 
@@ -362,7 +378,23 @@ export default function App() {
               onReload={reloadItems}
             />
           )}
-          {active === "hooks" && <HooksPanel hooks={hooks} filter={filter} />}
+          {active === "permissions" && (
+            <PermissionsPanel
+              data={settings}
+              filter={filter}
+              scope={scope}
+              onReload={reloadSettingsAndHooks}
+            />
+          )}
+          {active === "hooks" && (
+            <HooksPanel
+              hooks={hooks}
+              settings={settings}
+              filter={filter}
+              scope={scope}
+              onReload={reloadSettingsAndHooks}
+            />
+          )}
         </main>
       </div>
 

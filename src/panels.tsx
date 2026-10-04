@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   AppInfo,
   EffectiveSetting,
-  HookEntry,
   Item,
   Layer,
   LayerFile,
@@ -1059,49 +1058,6 @@ export function ItemsPanel({
             setTimeout(() => setNote(null), 6000);
           }}
         />
-      )}
-    </div>
-  );
-}
-
-/* ---------- Hooks ---------- */
-
-export function HooksPanel({
-  hooks,
-  filter,
-}: {
-  hooks: HookEntry[] | null;
-  filter: string;
-}) {
-  if (!hooks) return <Loading label="Reading hooks…" />;
-  const f = filter.trim().toLowerCase();
-  const list = hooks.filter(
-    (h) =>
-      !f ||
-      h.event.toLowerCase().includes(f) ||
-      (h.command ?? "").toLowerCase().includes(f) ||
-      (h.matcher ?? "").toLowerCase().includes(f)
-  );
-  return (
-    <div className="panel">
-      <h1>Hooks</h1>
-      <div className="sub">Commands Claude Code runs on lifecycle events.</div>
-      {list.length === 0 ? (
-        <Empty>No hooks{f ? " match" : " configured"}.</Empty>
-      ) : (
-        list.map((h, i) => (
-          <div className="row" key={i}>
-            <div className="grow">
-              <div className="nm">
-                {h.event}
-                {h.matcher && <span className="badge layer">{h.matcher}</span>}
-                <span className="badge accent">{h.hookType}</span>
-              </div>
-              {h.command && <div className="path">{h.command}</div>}
-            </div>
-            <LayerBadge layer={h.source} />
-          </div>
-        ))
       )}
     </div>
   );

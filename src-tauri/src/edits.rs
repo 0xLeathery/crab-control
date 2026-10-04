@@ -203,6 +203,191 @@ fn ensure_array<'a>(v: &'a mut Value, key: &str) -> &'a mut Vec<Value> {
     entry.as_array_mut().unwrap()
 }
 
+const PERMISSION_LISTS: &[&str] = &["allow", "deny", "ask"];
+
+/// Add or remove one rule in `permissions.<list>`. Empty lists/objects left
+/// behind by a removal are dropped so the file stays tidy.
+pub fn apply_permission_rule(
+    v: &mut Value,
+    list: &str,
+    rule: &str,
+    add: bool,
+) -> Result<(), String> {
+    if !PERMISSION_LISTS.contains(&list) {
+        return Err(format!("unknown permission list: {list}"));
+    }
+    let rule = rule.trim();
+    if rule.is_empty() {
+        return Err("rule is empty".into());
+    }
+    if add {
+        let perms = object_entry(v, "permissions");
+        let arr = ensure_array(perms, list);
+        if !arr.iter().any(|x| x.as_str() == Some(rule)) {
+            arr.push(Value::String(rule.to_string()));
+        }
+    } else if let Some(perms) = v.get_mut("permissions") {
+        if let Some(Value::Array(arr)) = perms.get_mut(list) {
+            arr.retain(|x| x.as_str() != Some(rule));
+        }
+        prune_empty(perms, list);
+        prune_empty(v, "permissions");
+    }
+    Ok(())
+}
+
+pub fn preview_permission_rule(
+    scope: &Scope,
+    layer: Layer,
+    list: &str,
+    rule: &str,
+    add: bool,
+) -> Result<MutationPreview, String> {
+    // Validate up front so a bad request never reaches the preview.
+    apply_permission_rule(&mut Value::Object(Default::default()), list, rule, true)?;
+    let note = format!(
+        "{} permissions.{list} rule {}",
+        if add { "Add" } else { "Remove" },
+        rule.trim()
+    );
+    let (list, rule) = (list.to_string(), rule.to_string());
+    build_preview(scope, layer, note, move |v| {
+        let _ = apply_permission_rule(v, &list, &rule, add);
+    })
+}
+
+/// Append a command hook to `hooks.<event>`, joining the group that has the
+/// same matcher if there is one.
+pub fn apply_hook_add(
+    v: &mut Value,
+    event: &str,
+    matcher: Option<&str>,
+    command: &str,
+    timeout: Option<u64>,
+) -> Result<(), String> {
+    let event = event.trim();
+    let command = command.trim();
+    if event.is_empty() || command.is_empty() {
+        return Err("event and command are required".into());
+    }
+    let matcher = matcher.map(str::trim).filter(|m| !m.is_empty());
+    let mut hook = serde_json::Map::new();
+    hook.insert("type".into(), Value::String("command".into()));
+    hook.insert("command".into(), Value::String(command.to_string()));
+    if let Some(t) = timeout {
+        hook.insert("timeout".into(), Value::from(t));
+    }
+    let groups = ensure_array(object_entry(v, "hooks"), event);
+    let existing = groups
+        .iter_mut()
+        .find(|g| g.get("matcher").and_then(Value::as_str) == matcher);
+    match existing {
+        Some(group) => ensure_array(group, "hooks").push(Value::Object(hook)),
+        None => {
+            let mut group = serde_json::Map::new();
+            if let Some(m) = matcher {
+                group.insert("matcher".into(), Value::String(m.to_string()));
+            }
+            group.insert("hooks".into(), Value::Array(vec![Value::Object(hook)]));
+            groups.push(Value::Object(group));
+        }
+    }
+    Ok(())
+}
+
+/// Remove the `hook`-th hook of the `group`-th matcher group of an event,
+/// pruning the group/event/`hooks` key if that leaves them empty.
+pub fn apply_hook_remove(
+    v: &mut Value,
+    event: &str,
+    group: usize,
+    hook: usize,
+) -> Result<(), String> {
+    let missing = || format!("hook {event}[{group}][{hook}] not found");
+    let hooks = v.get_mut("hooks").ok_or_else(missing)?;
+    let groups = hooks
+        .get_mut(event)
+        .and_then(Value::as_array_mut)
+        .ok_or_else(missing)?;
+    let list = groups
+        .get_mut(group)
+        .and_then(|g| g.get_mut("hooks"))
+        .and_then(Value::as_array_mut)
+        .ok_or_else(missing)?;
+    if hook >= list.len() {
+        return Err(missing());
+    }
+    list.remove(hook);
+    if list.is_empty() {
+        groups.remove(group);
+    }
+    prune_empty(hooks, event);
+    prune_empty(v, "hooks");
+    Ok(())
+}
+
+pub fn preview_hook_add(
+    scope: &Scope,
+    layer: Layer,
+    event: &str,
+    matcher: Option<String>,
+    command: &str,
+    timeout: Option<u64>,
+) -> Result<MutationPreview, String> {
+    let mut probe = Value::Object(Default::default());
+    apply_hook_add(&mut probe, event, matcher.as_deref(), command, timeout)?;
+    let note = format!("Add {} hook", event.trim());
+    let (event, command) = (event.to_string(), command.to_string());
+    build_preview(scope, layer, note, move |v| {
+        let _ = apply_hook_add(v, &event, matcher.as_deref(), &command, timeout);
+    })
+}
+
+pub fn preview_hook_remove(
+    scope: &Scope,
+    layer: Layer,
+    event: &str,
+    group: usize,
+    hook: usize,
+) -> Result<MutationPreview, String> {
+    let (_, mut probe, _) = current(scope, layer)?;
+    apply_hook_remove(&mut probe, event, group, hook)?;
+    let note = format!("Remove {event} hook");
+    let event = event.to_string();
+    build_preview(scope, layer, note, move |v| {
+        let _ = apply_hook_remove(v, &event, group, hook);
+    })
+}
+
+fn object_entry<'a>(v: &'a mut Value, key: &str) -> &'a mut Value {
+    if !v.is_object() {
+        *v = Value::Object(Default::default());
+    }
+    let entry = v
+        .as_object_mut()
+        .unwrap()
+        .entry(key.to_string())
+        .or_insert_with(|| Value::Object(Default::default()));
+    if !entry.is_object() {
+        *entry = Value::Object(Default::default());
+    }
+    entry
+}
+
+/// Remove `key` from an object if its value is an empty array or object.
+fn prune_empty(v: &mut Value, key: &str) {
+    if let Value::Object(map) = v {
+        let empty = match map.get(key) {
+            Some(Value::Array(a)) => a.is_empty(),
+            Some(Value::Object(o)) => o.is_empty(),
+            _ => false,
+        };
+        if empty {
+            map.remove(key);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -265,5 +450,87 @@ mod tests {
         assert!(dis.new_text.contains("\"disabledMcpjsonServers\""));
         assert!(dis.new_text.contains("\"srv\""));
         std::fs::remove_dir_all(&proj).ok();
+    }
+
+    fn parse(t: &str) -> Value {
+        serde_json::from_str(t).unwrap()
+    }
+
+    #[test]
+    fn permission_rule_add_dedups_and_remove_cleans_up() {
+        let mut v = parse(r#"{"theme":"dark","permissions":{"allow":["Bash(ls)"]}}"#);
+        apply_permission_rule(&mut v, "allow", "Bash(npm test)", true).unwrap();
+        apply_permission_rule(&mut v, "allow", "Bash(npm test)", true).unwrap();
+        apply_permission_rule(&mut v, "deny", "Read(./.env)", true).unwrap();
+        assert_eq!(
+            v["permissions"],
+            parse(r#"{"allow":["Bash(ls)","Bash(npm test)"],"deny":["Read(./.env)"]}"#)
+        );
+        apply_permission_rule(&mut v, "deny", "Read(./.env)", false).unwrap();
+        assert_eq!(
+            v["permissions"],
+            parse(r#"{"allow":["Bash(ls)","Bash(npm test)"]}"#)
+        );
+        assert_eq!(v["theme"], "dark");
+    }
+
+    #[test]
+    fn permission_rule_rejects_bad_input() {
+        let mut v = parse("{}");
+        assert!(apply_permission_rule(&mut v, "maybe", "Bash(ls)", true).is_err());
+        assert!(apply_permission_rule(&mut v, "allow", "  ", true).is_err());
+        assert_eq!(v, parse("{}"));
+    }
+
+    #[test]
+    fn permission_rule_preview_writes_to_layer() {
+        let (scope, proj) = temp_project();
+        let p = preview_permission_rule(&scope, Layer::Project, "ask", "WebFetch", true).unwrap();
+        assert!(
+            p.new_text.contains("\"ask\": [\n      \"WebFetch\""),
+            "{}",
+            p.new_text
+        );
+        assert!(p.new_text.contains("\"theme\": \"dark\""));
+        std::fs::remove_dir_all(&proj).ok();
+    }
+
+    #[test]
+    fn hook_add_groups_by_matcher() {
+        let mut v = parse("{}");
+        apply_hook_add(&mut v, "PostToolUse", Some("Edit"), "fmt.sh", None).unwrap();
+        apply_hook_add(&mut v, "PostToolUse", Some("Edit"), "lint.sh", Some(30)).unwrap();
+        apply_hook_add(&mut v, "Stop", None, "notify.sh", None).unwrap();
+        assert_eq!(
+            v["hooks"],
+            parse(
+                r#"{
+                "PostToolUse": [{"matcher":"Edit","hooks":[
+                    {"type":"command","command":"fmt.sh"},
+                    {"type":"command","command":"lint.sh","timeout":30}]}],
+                "Stop": [{"hooks":[{"type":"command","command":"notify.sh"}]}]
+            }"#
+            )
+        );
+        assert!(apply_hook_add(&mut v, "Stop", None, " ", None).is_err());
+        assert!(apply_hook_add(&mut v, "", None, "x", None).is_err());
+    }
+
+    #[test]
+    fn hook_remove_by_position_prunes_empty_groups() {
+        let mut v = parse(
+            r#"{"hooks":{"PostToolUse":[{"matcher":"Edit","hooks":[
+                {"type":"command","command":"a"},{"type":"command","command":"b"}]}],
+              "Stop":[{"hooks":[{"type":"command","command":"c"}]}]}}"#,
+        );
+        apply_hook_remove(&mut v, "PostToolUse", 0, 0).unwrap();
+        assert_eq!(
+            v["hooks"]["PostToolUse"],
+            parse(r#"[{"matcher":"Edit","hooks":[{"type":"command","command":"b"}]}]"#)
+        );
+        apply_hook_remove(&mut v, "Stop", 0, 0).unwrap();
+        assert!(v["hooks"].get("Stop").is_none(), "{v}");
+        assert!(apply_hook_remove(&mut v, "Stop", 0, 0).is_err());
+        assert!(apply_hook_remove(&mut v, "PostToolUse", 0, 5).is_err());
     }
 }

@@ -52,6 +52,9 @@ keyboard-driven.
   schema, with descriptions; booleans toggle and enums use a dropdown.
 - **Plugins** — enable/disable.
 - **MCP** — add a server, remove a server, enable/disable project servers.
+- **Permissions** — add or remove `allow` / `deny` / `ask` rules in any
+  editable layer.
+- **Hooks** — add a command hook (event, matcher, timeout) or remove one.
 
 ### Create new things
 - Add an MCP server (builds a `claude mcp add …` command with a masked preview).
