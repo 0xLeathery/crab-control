@@ -1,6 +1,6 @@
-//! Phase 2 — safe writes for settings files. Every write goes through:
+//! Safe writes for settings (and memory) files. Every write goes through:
 //!   1. resolve + guard  (only editable layer files; never managed/read-only)
-//!   2. validate         (must parse as JSON; invalid input is rejected)
+//!   2. validate         (settings must parse as JSON; invalid input is rejected)
 //!   3. backup           (timestamped `<file>.backup.<epoch-ms>`, keep last 5)
 //!   4. atomic write     (temp file in same dir + rename)
 //!
@@ -171,7 +171,7 @@ fn backup(path: &Path) -> Result<Option<PathBuf>, String> {
     Ok(Some(backup_path))
 }
 
-fn save_err(msg: String) -> SaveResult {
+pub(crate) fn save_err(msg: String) -> SaveResult {
     SaveResult {
         ok: false,
         backup_path: None,
@@ -210,7 +210,31 @@ pub(crate) fn save_to_path(path: &Path, read_only: bool, content: &str) -> SaveR
         ));
     }
 
-    // Backup existing file (and prune to KEEP_BACKUPS).
+    write_atomic(path, content)
+}
+
+/// Save non-JSON text (e.g. CLAUDE.md). Callers guard which paths are allowed;
+/// a symlink is written through to its target so the link itself survives.
+pub(crate) fn save_text_to_path(path: &Path, content: &str) -> SaveResult {
+    if is_forbidden(path) {
+        return save_err("refusing to write a credentials file".into());
+    }
+    let target = if std::fs::symlink_metadata(path)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        match std::fs::canonicalize(path) {
+            Ok(p) => p,
+            Err(e) => return save_err(format!("cannot resolve symlink: {e}")),
+        }
+    } else {
+        path.to_path_buf()
+    };
+    write_atomic(&target, content)
+}
+
+/// Backup (pruned to KEEP_BACKUPS) → ensure parent dir → temp file + rename.
+fn write_atomic(path: &Path, content: &str) -> SaveResult {
     let backup_path = match backup(path) {
         Ok(b) => b,
         Err(e) => return save_err(e),
@@ -223,7 +247,6 @@ pub(crate) fn save_to_path(path: &Path, read_only: bool, content: &str) -> SaveR
         }
     }
 
-    // Atomic write: temp file in same dir, then rename over the target.
     let tmp = path.with_file_name(format!(
         "{}.tmp.{}",
         path.file_name()
