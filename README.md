@@ -105,7 +105,9 @@ npm run app:build  # → src-tauri/target/release/bundle/
 crab-control/
 ├─ src/                 React + Vite + TypeScript frontend (no component library)
 │  ├─ App.tsx           shell: sidebar, scope picker, command palette
-│  ├─ panels.tsx        one panel per domain
+│  ├─ panels/           one file per domain panel
+│  ├─ edit-panels.tsx   permissions + hooks editors
+│  ├─ helpers.ts        pure helpers (unit-tested)
 │  ├─ editor.tsx        raw editor + diff/confirm
 │  ├─ create.tsx        creation modals
 │  └─ api.ts            typed bridge to the Rust commands
