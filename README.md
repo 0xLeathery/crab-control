@@ -63,7 +63,10 @@ keyboard-driven.
   dropdowns for enums, validated inputs for strings and numbers, a JSON editor
   for objects and arrays, and Unset. Pick which layer changes are written to.
   Values containing masked secrets stay read-only here (use the raw editor).
-- **Plugins** — enable/disable.
+- **Plugins** — enable/disable; install, update, uninstall; add, update,
+  remove marketplaces. These run `claude plugin …` — the exact command is
+  shown first, with a trust warning for anything that fetches code.
+  Project/local-scope commands run in the project directory.
 - **MCP** — add, edit, or remove servers; enable/disable project servers.
   Project servers (`.mcp.json`) are edited in place with a masked diff;
   user/local servers are owned by the CLI, so an edit runs

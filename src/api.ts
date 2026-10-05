@@ -2,6 +2,7 @@
 // structs in src-tauri/src/model.rs exactly (camelCase).
 import { invoke } from "@tauri-apps/api/core";
 import type { HookSpec } from "./hooks";
+import type { PluginActionKind } from "./helpers";
 
 export type ScopeKind = "global" | "project";
 export interface Scope {
@@ -231,6 +232,13 @@ export interface McpAddSpec {
   headers: string[];
 }
 
+export interface PluginAction {
+  action: PluginActionKind;
+  /** Plugin, marketplace name, or (for marketplace-add) source. */
+  target: string;
+  scope?: string | null;
+}
+
 export interface McpEditPreview {
   mode: "file" | "cli";
   displayPath: string;
@@ -346,13 +354,17 @@ export const api = {
     hookIndex: number
   ) =>
     invoke<MutationPreview>("preview_hook_remove", { scope, layer, event, groupIndex, hookIndex }),
-  mcpRemove: (name: string, scopeFlag: string) =>
-    invoke<string>("mcp_remove", { name, scopeFlag }),
+  mcpRemove: (scope: Scope, name: string, scopeFlag: string) =>
+    invoke<string>("mcp_remove", { scope, name, scopeFlag }),
   // Phase 3: creation flows + export
   createItem: (scope: Scope, kind: string, name: string, content: string) =>
     invoke<CreateResult>("create_item", { scope, kind, name, content }),
   mcpAddPreview: (spec: McpAddSpec) => invoke<string>("mcp_add_preview", { spec }),
-  mcpAdd: (spec: McpAddSpec) => invoke<string>("mcp_add", { spec }),
+  mcpAdd: (scope: Scope, spec: McpAddSpec) => invoke<string>("mcp_add", { scope, spec }),
+  pluginActionPreview: (scope: Scope, action: PluginAction) =>
+    invoke<string>("plugin_action_preview", { scope, action }),
+  pluginActionRun: (scope: Scope, action: PluginAction) =>
+    invoke<string>("plugin_action_run", { scope, action }),
   mcpReadSpec: (scope: Scope, name: string, scopeFlag: string) =>
     invoke<McpAddSpec>("mcp_read_spec", { scope, name, scopeFlag }),
   mcpPreviewUpdate: (scope: Scope, name: string, scopeFlag: string, spec: McpAddSpec) =>

@@ -117,3 +117,29 @@ export function splitArgs(text: string): string[] {
 export function isPluginServer(s: Pick<McpServer, "name" | "scope">): boolean {
   return s.scope === "plugin" || s.name.startsWith("plugin:");
 }
+
+export type PluginActionKind =
+  | "install"
+  | "uninstall"
+  | "update"
+  | "marketplace-add"
+  | "marketplace-remove"
+  | "marketplace-update";
+
+/** Actions that fetch code (hooks, MCP servers, commands) that then runs as you. */
+export function needsTrustWarning(a: PluginActionKind): boolean {
+  return a === "install" || a === "update" || a === "marketplace-add";
+}
+
+const ACTION_LABELS: Record<PluginActionKind, string> = {
+  install: "Install",
+  uninstall: "Uninstall",
+  update: "Update",
+  "marketplace-add": "Add marketplace",
+  "marketplace-remove": "Remove marketplace",
+  "marketplace-update": "Update marketplace",
+};
+
+export function pluginActionLabel(a: PluginActionKind): string {
+  return ACTION_LABELS[a];
+}

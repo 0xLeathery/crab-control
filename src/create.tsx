@@ -229,7 +229,7 @@ export function AddMcpModal({
     setBusy(true);
     setError(null);
     try {
-      const out = await api.mcpAdd(spec);
+      const out = await api.mcpAdd(scope, spec);
       onAdded(out || `Added ${spec.name}.`);
     } catch (e) {
       setError(String(e));

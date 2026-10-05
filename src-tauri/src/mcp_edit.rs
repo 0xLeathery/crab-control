@@ -454,9 +454,10 @@ pub fn commit_update(
     }
     let original = original_spec(scope, name, flag)?;
     let new = unmask_spec(spec, &original)?;
+    let cwd = crate::mcp::cli_cwd(scope, Some(flag))?;
     let mut run = |args: &[String]| {
         let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        crate::mcp::claude_run(&refs)
+        crate::mcp::claude_run_in(&refs, cwd.as_deref())
     };
     update_via_cli(&mut run, name, &original, &new)
 }

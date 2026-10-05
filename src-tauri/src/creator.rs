@@ -182,13 +182,14 @@ pub fn mcp_add_display(spec: &McpAddSpec) -> String {
 }
 
 /// Add an MCP server via the CLI.
-pub fn mcp_add(spec: &McpAddSpec) -> Result<String, String> {
+pub fn mcp_add(scope: &Scope, spec: &McpAddSpec) -> Result<String, String> {
     if spec.name.trim().is_empty() || spec.target.trim().is_empty() {
         return Err("name and command/URL are required".into());
     }
     let argv = mcp_add_argv(spec);
     let refs: Vec<&str> = argv.iter().map(|s| s.as_str()).collect();
-    let (success, out) = crate::mcp::claude_run(&refs)?;
+    let cwd = crate::mcp::cli_cwd(scope, Some(&spec.scope))?;
+    let (success, out) = crate::mcp::claude_run_in(&refs, cwd.as_deref())?;
     crate::mcp::cli_result(
         success,
         &crate::secrets::mask_command(&out),
