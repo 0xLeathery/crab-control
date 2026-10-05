@@ -118,6 +118,12 @@ pub struct HookEntry {
     pub matcher: Option<String>,
     pub hook_type: String,
     pub command: Option<String>,
+    /// `http` hooks; masked.
+    pub url: Option<String>,
+    /// `prompt` / `agent` hooks; masked.
+    pub prompt: Option<String>,
+    pub model: Option<String>,
+    pub timeout: Option<u64>,
     pub source: Layer,
     /// Position within `hooks.<event>` / the group's `hooks` list, so the UI
     /// can target this hook for removal.

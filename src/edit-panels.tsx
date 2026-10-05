@@ -11,6 +11,15 @@ import {
   api,
 } from "./api";
 import { PreviewConfirm } from "./editor";
+import {
+  HOOK_TYPES,
+  HookForm,
+  emptyHookForm,
+  hookFormFromEntry,
+  hookSpecFromForm,
+  hookSummary,
+} from "./hooks";
+import { isMasked } from "./settings-edit";
 import { editableLayers, PermissionList, permissionRules } from "./helpers";
 import { Empty, Icon, LayerBadge } from "./ui";
 
@@ -202,6 +211,151 @@ export function PermissionsPanel({
 
 /* ---------- Hooks ---------- */
 
+/** Type-specific inputs shared by the add and edit hook forms. */
+function HookFields({ form, onChange }: { form: HookForm; onChange: (f: HookForm) => void }) {
+  const set = (k: keyof HookForm) => (e: { target: { value: string } }) =>
+    onChange({ ...form, [k]: e.target.value });
+  const usesPrompt = form.hookType === "prompt" || form.hookType === "agent";
+  return (
+    <>
+      <div className="frow">
+        <label className="fld" style={{ maxWidth: 130 }}>
+          <span>Type</span>
+          <select className="select" value={form.hookType} onChange={set("hookType")}>
+            {HOOK_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="fld" style={{ maxWidth: 160 }}>
+          <span>Matcher (optional)</span>
+          <input className="finput mono" value={form.matcher} placeholder="Edit|Write" onChange={set("matcher")} />
+        </label>
+        <label className="fld" style={{ maxWidth: 110 }}>
+          <span>Timeout (s)</span>
+          <input className="finput mono" value={form.timeout} onChange={set("timeout")} />
+        </label>
+      </div>
+      <div className="frow">
+        {form.hookType === "command" && (
+          <label className="fld">
+            <span>Command</span>
+            <input
+              className="finput mono"
+              value={form.command}
+              placeholder="./scripts/format.sh"
+              onChange={set("command")}
+            />
+          </label>
+        )}
+        {form.hookType === "http" && (
+          <label className="fld">
+            <span>URL (receives the event JSON as a POST)</span>
+            <input
+              className="finput mono"
+              value={form.url}
+              placeholder="http://localhost:8080/hooks"
+              onChange={set("url")}
+            />
+          </label>
+        )}
+        {usesPrompt && (
+          <>
+            <label className="fld">
+              <span>{form.hookType === "agent" ? "Agent instructions" : "Prompt"} ($ARGUMENTS = event JSON)</span>
+              <input className="finput" value={form.prompt} onChange={set("prompt")} />
+            </label>
+            <label className="fld" style={{ maxWidth: 130 }}>
+              <span>Model (optional)</span>
+              <input className="finput mono" value={form.model} placeholder="haiku" onChange={set("model")} />
+            </label>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+function HookRow({
+  hook: h,
+  editable,
+  scope,
+  start,
+}: {
+  hook: HookEntry;
+  editable: boolean;
+  scope: Scope;
+  start: (load: () => Promise<MutationPreview>) => Promise<boolean>;
+}) {
+  const [form, setForm] = useState<HookForm | null>(null);
+  const masked = isMasked([h.command, h.url, h.prompt]);
+  const check = form ? hookSpecFromForm(form) : null;
+  return (
+    <div className="row" style={form ? { flexWrap: "wrap" } : undefined}>
+      <div className="grow">
+        <div className="nm">
+          {h.event}
+          {h.matcher && <span className="badge layer">{h.matcher}</span>}
+          <span className="badge accent">{h.hookType}</span>
+        </div>
+        {hookSummary(h) && <div className="path">{hookSummary(h)}</div>}
+      </div>
+      <LayerBadge layer={h.source} />
+      {editable && !form && (
+        <>
+          <button
+            className="btn"
+            disabled={masked}
+            title={masked ? "Contains a masked secret — edit the raw settings file instead" : undefined}
+            onClick={() => setForm(hookFormFromEntry(h))}
+          >
+            Edit
+          </button>
+          <button
+            className="btn"
+            onClick={() => start(() => api.previewHookRemove(scope, h.source, h.event, h.groupIndex, h.hookIndex))}
+          >
+            Remove…
+          </button>
+        </>
+      )}
+      {form && check && (
+        <div className="form" style={{ flexBasis: "100%" }}>
+          <HookFields form={form} onChange={setForm} />
+          {check.error && <div className="fhint err">{check.error}</div>}
+          <div className="toolbar">
+            <button
+              className="btn primary"
+              disabled={!check.spec}
+              onClick={() =>
+                check.spec &&
+                start(() =>
+                  api.previewHookUpdate(
+                    scope,
+                    h.source,
+                    h.event,
+                    h.groupIndex,
+                    h.hookIndex,
+                    form.matcher.trim() || null,
+                    check.spec!
+                  )
+                ).then((ok) => ok && setForm(null))
+              }
+            >
+              Review changes…
+            </button>
+            <button className="btn" onClick={() => setForm(null)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function HooksPanel({
   hooks,
   settings,
@@ -218,9 +372,7 @@ export function HooksPanel({
   const layers = settings ? editableLayers(settings.files) : [];
   const [layer, setLayer] = useState<Layer | null>(null);
   const [event, setEvent] = useState(HOOK_EVENTS[1]);
-  const [matcher, setMatcher] = useState("");
-  const [command, setCommand] = useState("");
-  const [timeout, setTimeoutSecs] = useState("");
+  const [form, setForm] = useState<HookForm>(emptyHookForm);
   const { start, modal, bars } = useEditFlow(scope, onReload);
 
   if (!hooks) return <Empty>Reading hooks…</Empty>;
@@ -230,16 +382,18 @@ export function HooksPanel({
     (h) =>
       !f ||
       h.event.toLowerCase().includes(f) ||
-      (h.command ?? "").toLowerCase().includes(f) ||
+      hookSummary(h).toLowerCase().includes(f) ||
       (h.matcher ?? "").toLowerCase().includes(f)
   );
-  const secs = timeout.trim() ? Number(timeout) : null;
-  const timeoutOk = secs === null || (Number.isInteger(secs) && secs > 0);
+  const check = hookSpecFromForm(form);
+  const touched = !!(form.command || form.url || form.prompt || form.timeout);
 
   return (
     <div className="panel">
       <h1>Hooks</h1>
-      <div className="sub">Commands Claude Code runs on lifecycle events.</div>
+      <div className="sub">
+        Commands, HTTP endpoints, prompts or agents Claude Code runs on lifecycle events.
+      </div>
       {bars}
 
       {target && (
@@ -256,46 +410,21 @@ export function HooksPanel({
               </select>
             </label>
             <label className="fld" style={{ maxWidth: 160 }}>
-              <span>Matcher (optional)</span>
-              <input
-                className="finput mono"
-                value={matcher}
-                placeholder="Edit|Write"
-                onChange={(e) => setMatcher(e.target.value)}
-              />
-            </label>
-            <label className="fld" style={{ maxWidth: 160 }}>
               <span>Layer</span>
               <LayerSelect layers={layers} value={target} onChange={setLayer} />
             </label>
           </div>
-          <div className="frow">
-            <label className="fld">
-              <span>Command</span>
-              <input
-                className="finput mono"
-                value={command}
-                placeholder="./scripts/format.sh"
-                onChange={(e) => setCommand(e.target.value)}
-              />
-            </label>
-            <label className="fld" style={{ maxWidth: 110 }}>
-              <span>Timeout (s)</span>
-              <input
-                className="finput mono"
-                value={timeout}
-                onChange={(e) => setTimeoutSecs(e.target.value)}
-              />
-            </label>
-          </div>
+          <HookFields form={form} onChange={setForm} />
+          {touched && check.error && <div className="fhint err">{check.error}</div>}
           <div className="toolbar">
             <button
               className="btn primary"
-              disabled={!command.trim() || !timeoutOk}
+              disabled={!check.spec}
               onClick={() =>
+                check.spec &&
                 start(() =>
-                  api.previewHookAdd(scope, target, event, matcher.trim() || null, command, secs)
-                ).then((ok) => ok && setCommand(""))
+                  api.previewHookAdd(scope, target, event, form.matcher.trim() || null, check.spec!)
+                ).then((ok) => ok && setForm(emptyHookForm()))
               }
             >
               Add hook…
@@ -308,29 +437,13 @@ export function HooksPanel({
         <Empty>No hooks{f ? " match" : " configured"}.</Empty>
       ) : (
         list.map((h) => (
-          <div className="row" key={`${h.source}:${h.event}:${h.groupIndex}:${h.hookIndex}`}>
-            <div className="grow">
-              <div className="nm">
-                {h.event}
-                {h.matcher && <span className="badge layer">{h.matcher}</span>}
-                <span className="badge accent">{h.hookType}</span>
-              </div>
-              {h.command && <div className="path">{h.command}</div>}
-            </div>
-            <LayerBadge layer={h.source} />
-            {layers.includes(h.source) && (
-              <button
-                className="btn"
-                onClick={() =>
-                  start(() =>
-                    api.previewHookRemove(scope, h.source, h.event, h.groupIndex, h.hookIndex)
-                  )
-                }
-              >
-                Remove…
-              </button>
-            )}
-          </div>
+          <HookRow
+            key={`${h.source}:${h.event}:${h.groupIndex}:${h.hookIndex}`}
+            hook={h}
+            editable={layers.includes(h.source)}
+            scope={scope}
+            start={start}
+          />
         ))
       )}
       {modal}
