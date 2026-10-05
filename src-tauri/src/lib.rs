@@ -10,6 +10,7 @@ mod info;
 mod item_files;
 mod items;
 mod mcp;
+mod mcp_edit;
 mod memory;
 mod model;
 mod plugins;
@@ -310,6 +311,39 @@ async fn mcp_remove(name: String, scope_flag: String) -> Result<String, String> 
         .map_err(|e| format!("task failed: {e}"))?
 }
 
+#[tauri::command]
+fn mcp_read_spec(
+    scope: Scope,
+    name: String,
+    scope_flag: String,
+) -> Result<creator::McpAddSpec, String> {
+    mcp_edit::read_spec(&scope, &name, &scope_flag)
+}
+
+#[tauri::command]
+fn mcp_preview_update(
+    scope: Scope,
+    name: String,
+    scope_flag: String,
+    spec: creator::McpAddSpec,
+) -> Result<mcp_edit::McpEditPreview, String> {
+    mcp_edit::preview_update(&scope, &name, &scope_flag, &spec)
+}
+
+#[tauri::command]
+async fn mcp_commit_update(
+    scope: Scope,
+    name: String,
+    scope_flag: String,
+    spec: creator::McpAddSpec,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        mcp_edit::commit_update(&scope, &name, &scope_flag, &spec)
+    })
+    .await
+    .map_err(|e| format!("task failed: {e}"))?
+}
+
 // ---- Phase 3: creation flows + snapshot export ----
 
 #[tauri::command]
@@ -393,6 +427,9 @@ pub fn run() {
             create_item,
             mcp_add_preview,
             mcp_add,
+            mcp_read_spec,
+            mcp_preview_update,
+            mcp_commit_update,
             export_snapshot,
             list_snapshots,
             preview_import,

@@ -75,3 +75,40 @@ export function relativeTime(ms: number, now: number = Date.now()): string {
   const d = Math.floor(h / 24);
   return `${d} day${d === 1 ? "" : "s"} ago`;
 }
+
+/** Args as one editable line; args with spaces or quotes get quoted. */
+export function joinArgs(args: string[]): string {
+  return args
+    .map((a) => (/^[^\s"'\\]+$/.test(a) ? a : `"${a.replace(/[\\"]/g, (c) => "\\" + c)}"`))
+    .join(" ");
+}
+
+/** Shell-like split honouring "double", 'single' quotes and backslash escapes. */
+export function splitArgs(text: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inToken = false;
+  let quote: string | null = null;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quote === "'") {
+      if (c === "'") quote = null;
+      else cur += c;
+    } else if (quote === '"') {
+      if (c === "\\" && (text[i + 1] === '"' || text[i + 1] === "\\")) cur += text[++i];
+      else if (c === '"') quote = null;
+      else cur += c;
+    } else if (/\s/.test(c)) {
+      if (inToken) out.push(cur);
+      cur = "";
+      inToken = false;
+    } else {
+      inToken = true;
+      if (c === "\\" && i + 1 < text.length) cur += text[++i];
+      else if (c === '"' || c === "'") quote = c;
+      else cur += c;
+    }
+  }
+  if (inToken) out.push(cur);
+  return out;
+}

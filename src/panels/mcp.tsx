@@ -2,7 +2,7 @@ import { useState } from "react";
 import { McpServer, MutationPreview, Scope, api } from "../api";
 import { Empty, Icon } from "../ui";
 import { ConfirmModal, PreviewConfirm } from "../editor";
-import { AddMcpModal } from "../create";
+import { AddMcpModal, McpEditTarget } from "../create";
 import { mcpScopeFlag, statusClass } from "../helpers";
 import { Loading } from "./common";
 
@@ -29,6 +29,17 @@ export function McpPanel({
   const [actionError, setActionError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<McpEditTarget | null>(null);
+
+  const startEdit = async (s: McpServer) => {
+    setActionError(null);
+    const flag = mcpScopeFlag(s);
+    try {
+      setEditing({ name: s.name, flag, spec: await api.mcpReadSpec(scope, s.name, flag) });
+    } catch (e) {
+      setActionError(String(e));
+    }
+  };
 
   const f = filter.trim().toLowerCase();
   const list = (servers ?? []).filter(
@@ -145,12 +156,14 @@ export function McpPanel({
                   claude.ai managed
                 </span>
               ) : (
-                <button
-                  className="btn danger-outline"
-                  onClick={() => setRemoveTarget(s)}
-                >
-                  Remove
-                </button>
+                <>
+                  <button className="btn" onClick={() => startEdit(s)}>
+                    Edit…
+                  </button>
+                  <button className="btn danger-outline" onClick={() => setRemoveTarget(s)}>
+                    Remove
+                  </button>
+                </>
               )}
             </div>
           );
@@ -187,6 +200,20 @@ export function McpPanel({
             setNote(backup ? `Saved. Backup: ${backup}` : "Saved.");
             onReload();
             setTimeout(() => setNote(null), 6000);
+          }}
+        />
+      )}
+
+      {editing && (
+        <AddMcpModal
+          scope={scope}
+          edit={editing}
+          onClose={() => setEditing(null)}
+          onAdded={(msg) => {
+            setEditing(null);
+            setNote(msg);
+            onReload();
+            setTimeout(() => setNote(null), 8000);
           }}
         />
       )}

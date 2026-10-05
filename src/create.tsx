@@ -1,6 +1,8 @@
 // Phase 3 creation flows: scaffold an agent/command/skill, and add an MCP server.
 import { useEffect, useMemo, useState } from "react";
-import { McpAddSpec, Scope, api } from "./api";
+import { McpAddSpec, McpEditPreview, Scope, api } from "./api";
+import { ConfirmModal, DiffModal } from "./editor";
+import { joinArgs, splitArgs } from "./helpers";
 import { Icon } from "./ui";
 
 /* ---------- New agent / command / skill ---------- */
@@ -134,24 +136,35 @@ function splitLines(s: string): string[] {
     .filter(Boolean);
 }
 
+/** An existing server being edited: its current name, CLI scope flag and masked spec. */
+export interface McpEditTarget {
+  name: string;
+  flag: string;
+  spec: McpAddSpec;
+}
+
 export function AddMcpModal({
   scope,
+  edit,
   onAdded,
   onClose,
 }: {
   scope: Scope;
+  edit?: McpEditTarget;
   onAdded: (msg: string) => void;
   onClose: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [transport, setTransport] = useState<"stdio" | "http" | "sse">("stdio");
-  const [target, setTarget] = useState("");
+  const init = edit?.spec;
+  const [name, setName] = useState(init?.name ?? "");
+  const [transport, setTransport] = useState<"stdio" | "http" | "sse">(init?.transport ?? "stdio");
+  const [target, setTarget] = useState(init?.target ?? "");
   const [srvScope, setSrvScope] = useState<"local" | "user" | "project">(
-    scope.kind === "project" ? "project" : "user"
+    init?.scope ?? (scope.kind === "project" ? "project" : "user")
   );
-  const [argsText, setArgsText] = useState("");
-  const [envText, setEnvText] = useState("");
-  const [headersText, setHeadersText] = useState("");
+  const [argsText, setArgsText] = useState(joinArgs(init?.args ?? []));
+  const [envText, setEnvText] = useState((init?.env ?? []).join("\n"));
+  const [headersText, setHeadersText] = useState((init?.headers ?? []).join("\n"));
+  const [pending, setPending] = useState<McpEditPreview | null>(null);
   const [previewCmd, setPreviewCmd] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -164,7 +177,7 @@ export function AddMcpModal({
       transport,
       target: target.trim(),
       scope: srvScope,
-      args: isHttp ? [] : argsText.split(/\s+/).filter(Boolean),
+      args: isHttp ? [] : splitArgs(argsText),
       env: isHttp ? [] : splitLines(envText),
       headers: isHttp ? splitLines(headersText) : [],
     }),
@@ -199,15 +212,78 @@ export function AddMcpModal({
     }
   };
 
+  const review = async () => {
+    if (!edit) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setPending(await api.mcpPreviewUpdate(scope, edit.name, edit.flag, spec));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const commit = async () => {
+    if (!edit) return;
+    setBusy(true);
+    setError(null);
+    try {
+      onAdded(await api.mcpCommitUpdate(scope, edit.name, edit.flag, spec));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const ready = !!spec.name && !!spec.target;
+
+  if (edit && pending?.mode === "file") {
+    return (
+      <DiffModal
+        subtitle={`Edit ${edit.name} in .mcp.json (secrets masked)`}
+        path={pending.displayPath}
+        oldText={pending.oldText}
+        newText={pending.newText}
+        busy={busy}
+        error={error}
+        onConfirm={commit}
+        onCancel={() => setPending(null)}
+      />
+    );
+  }
+  if (edit && pending?.mode === "cli") {
+    return (
+      <ConfirmModal
+        title={`Update ${edit.name}`}
+        confirmLabel="Run commands"
+        busy={busy}
+        error={error}
+        onConfirm={commit}
+        onCancel={() => setPending(null)}
+        body={
+          <>
+            The <span className="mono">claude</span> CLI owns {edit.flag} servers, so this
+            removes the server and adds it back with your changes. If the add fails, the
+            original is re-added automatically.
+            <pre className="preview" style={{ marginTop: 8 }}>
+              {pending.command}
+            </pre>
+          </>
+        }
+      />
+    );
+  }
 
   return (
     <div className="modal-scrim" onClick={() => !busy && onClose()}>
       <div className="modal" style={{ width: 640 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <strong>Add MCP server</strong>
+          <strong>{edit ? `Edit ${edit.name}` : "Add MCP server"}</strong>
           <span className="muted mono" style={{ fontSize: 11 }}>
-            claude mcp add
+            {edit ? (edit.flag === "project" ? ".mcp.json" : "claude mcp") : "claude mcp add"}
           </span>
         </div>
         <div className="form">
@@ -238,6 +314,7 @@ export function AddMcpModal({
               <select
                 className="select"
                 value={srvScope}
+                disabled={!!edit}
                 onChange={(e) => setSrvScope(e.target.value as any)}
               >
                 <option value="user">user</option>
@@ -258,7 +335,7 @@ export function AddMcpModal({
           {!isHttp && (
             <>
               <label className="fld">
-                <span>Args (space-separated)</span>
+                <span>Args (space-separated; quote args with spaces)</span>
                 <input
                   className="finput mono"
                   value={argsText}
@@ -290,10 +367,18 @@ export function AddMcpModal({
               />
             </label>
           )}
-          <div className="fhint">Command preview (secrets masked)</div>
-          <pre className="preview" style={{ maxHeight: 110 }}>
-            {previewCmd || "—"}
-          </pre>
+          {edit ? (
+            <div className="fhint">
+              Values shown as •••• are kept as they are unless you retype them.
+            </div>
+          ) : (
+            <>
+              <div className="fhint">Command preview (secrets masked)</div>
+              <pre className="preview" style={{ maxHeight: 110 }}>
+                {previewCmd || "—"}
+              </pre>
+            </>
+          )}
         </div>
         {error && (
           <div className="warnbar" style={{ margin: "0 16px 10px" }}>
@@ -304,9 +389,15 @@ export function AddMcpModal({
           <button className="btn" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button className="btn primary" onClick={add} disabled={busy || !ready}>
-            {busy ? "Adding…" : "Add server"}
-          </button>
+          {edit ? (
+            <button className="btn primary" onClick={review} disabled={busy || !ready}>
+              Review changes…
+            </button>
+          ) : (
+            <button className="btn primary" onClick={add} disabled={busy || !ready}>
+              {busy ? "Adding…" : "Add server"}
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -219,6 +219,14 @@ export interface McpAddSpec {
   headers: string[];
 }
 
+export interface McpEditPreview {
+  mode: "file" | "cli";
+  displayPath: string;
+  oldText: string;
+  newText: string;
+  command: string;
+}
+
 export interface ExportResult {
   path: string;
   displayPath: string;
@@ -328,6 +336,12 @@ export const api = {
     invoke<CreateResult>("create_item", { scope, kind, name, content }),
   mcpAddPreview: (spec: McpAddSpec) => invoke<string>("mcp_add_preview", { spec }),
   mcpAdd: (spec: McpAddSpec) => invoke<string>("mcp_add", { spec }),
+  mcpReadSpec: (scope: Scope, name: string, scopeFlag: string) =>
+    invoke<McpAddSpec>("mcp_read_spec", { scope, name, scopeFlag }),
+  mcpPreviewUpdate: (scope: Scope, name: string, scopeFlag: string, spec: McpAddSpec) =>
+    invoke<McpEditPreview>("mcp_preview_update", { scope, name, scopeFlag, spec }),
+  mcpCommitUpdate: (scope: Scope, name: string, scopeFlag: string, spec: McpAddSpec) =>
+    invoke<string>("mcp_commit_update", { scope, name, scopeFlag, spec }),
   exportSnapshot: (scope: Scope) => invoke<ExportResult>("export_snapshot", { scope }),
   listSnapshots: () => invoke<SnapshotRef[]>("list_snapshots"),
   previewImport: (scope: Scope, path: string) =>

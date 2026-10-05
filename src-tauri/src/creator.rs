@@ -97,7 +97,7 @@ pub fn create_item(
     })
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpAddSpec {
     pub name: String,
@@ -187,7 +187,13 @@ pub fn mcp_add(spec: &McpAddSpec) -> Result<String, String> {
     }
     let argv = mcp_add_argv(spec);
     let refs: Vec<&str> = argv.iter().map(|s| s.as_str()).collect();
-    crate::mcp::claude_output(&refs)
+    let (success, out) = crate::mcp::claude_run(&refs)?;
+    crate::mcp::cli_result(
+        success,
+        &crate::secrets::mask_command(&out),
+        &format!("Added {}.", spec.name),
+        "claude mcp add failed",
+    )
 }
 
 #[derive(Debug, Clone, Serialize)]

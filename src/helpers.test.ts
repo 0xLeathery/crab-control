@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  joinArgs,
+  splitArgs,
   defaultWriteLayer,
   editableLayers,
   fmtTime,
@@ -119,5 +121,16 @@ describe("relativeTime", () => {
     [now - 86_400_000, "1 day ago"],
   ])("%s → %s", (ms, label) => {
     expect(relativeTime(ms, now)).toBe(label);
+  });
+});
+
+describe("joinArgs / splitArgs", () => {
+  it("round-trips args with spaces and quotes", () => {
+    const args = ["-y", "my server", "--name=it's", 'say "hi"', ""];
+    expect(splitArgs(joinArgs(args))).toEqual(args);
+  });
+  it("splits plain and quoted text", () => {
+    expect(splitArgs(`a  "b c" 'd e' f\\ g`)).toEqual(["a", "b c", "d e", "f g"]);
+    expect(joinArgs(["a", "b c"])).toBe(`a "b c"`);
   });
 });
