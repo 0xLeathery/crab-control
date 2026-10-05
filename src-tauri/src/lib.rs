@@ -8,6 +8,7 @@ mod importer;
 mod info;
 mod items;
 mod mcp;
+mod memory;
 mod model;
 mod plugins;
 mod schema;
@@ -128,6 +129,32 @@ fn preview_plugin_toggle(
     edits::preview_plugin_toggle(&scope, &full_id, enabled)
 }
 
+fn memory_scope(scope: &Scope) -> (PathBuf, Option<PathBuf>) {
+    let project = match (&scope.kind, &scope.path) {
+        (ScopeKind::Project, Some(p)) => Some(PathBuf::from(p)),
+        _ => None,
+    };
+    (util::claude_dir(), project)
+}
+
+#[tauri::command]
+fn list_memory_targets(scope: Scope) -> Vec<memory::MemoryTarget> {
+    let (cdir, project) = memory_scope(&scope);
+    memory::memory_targets(&cdir, project.as_deref())
+}
+
+#[tauri::command]
+fn read_memory(scope: Scope, path: String) -> Result<memory::MemoryFile, String> {
+    let (cdir, project) = memory_scope(&scope);
+    memory::read_memory(&cdir, project.as_deref(), &path)
+}
+
+#[tauri::command]
+fn save_memory(scope: Scope, path: String, content: String) -> writer::SaveResult {
+    let (cdir, project) = memory_scope(&scope);
+    memory::save_memory(&cdir, project.as_deref(), &path, &content)
+}
+
 #[tauri::command]
 fn preview_permission_rule(
     scope: Scope,
@@ -245,6 +272,9 @@ pub fn run() {
             preview_plugin_toggle,
             preview_mcp_toggle,
             preview_permission_rule,
+            list_memory_targets,
+            read_memory,
+            save_memory,
             preview_hook_add,
             preview_hook_remove,
             mcp_remove,

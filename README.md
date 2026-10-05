@@ -38,7 +38,8 @@ keyboard-driven.
   file-defined servers (`.mcp.json`, `~/.claude.json`). Transport, scope, and
   status at a glance.
 - **Memory.** `CLAUDE.md` / `CLAUDE.local.md` files and `rules/` directories,
-  user and project, with previews (read-only).
+  user and project. View and edit any of them (diff → confirm → backup), or
+  create a missing `CLAUDE.md` from a starter template.
 - **Plugins & marketplaces, agents, commands, skills, hooks.** Names, scopes,
   source paths, and previews — including everything contributed by plugins.
 - **Tips.** Checks your config against the Claude Code docs: secrets readable

@@ -15,6 +15,7 @@ import { CrabMark, Icon } from "./ui";
 import {
   ItemsPanel,
   McpPanel,
+  MemoryPanel,
   OverviewPanel,
   PluginsPanel,
   SettingsPanel,
@@ -383,9 +384,7 @@ export default function App() {
           )}
           {active === "tips" && <TipsPanel tips={tips} mcpLoaded={mcp !== null} filter={filter} />}
           {active === "memory" && (
-            <ItemsPanel
-              title="Memory"
-              subtitle="CLAUDE.md files and rules loaded into Claude's context. Read-only."
+            <MemoryPanel
               items={items?.memory ?? null}
               filter={filter}
               scope={scope}

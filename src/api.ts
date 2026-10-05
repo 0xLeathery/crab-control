@@ -63,6 +63,21 @@ export interface ItemsDomain {
   memory: Item[];
 }
 
+export interface MemoryTarget {
+  name: string;
+  source: string;
+  path: string;
+  displayPath: string;
+  exists: boolean;
+}
+
+export interface MemoryFile {
+  path: string;
+  displayPath: string;
+  exists: boolean;
+  text: string;
+}
+
 export interface HookEntry {
   event: string;
   matcher?: string | null;
@@ -216,6 +231,10 @@ export const api = {
   listProjects: () => invoke<ProjectRef[]>("list_projects"),
   readSettings: (scope: Scope) => invoke<SettingsDomain>("read_settings", { scope }),
   readHooks: (scope: Scope) => invoke<HookEntry[]>("read_hooks", { scope }),
+  listMemoryTargets: (scope: Scope) => invoke<MemoryTarget[]>("list_memory_targets", { scope }),
+  readMemory: (scope: Scope, path: string) => invoke<MemoryFile>("read_memory", { scope, path }),
+  saveMemory: (scope: Scope, path: string, content: string) =>
+    invoke<SaveResult>("save_memory", { scope, path, content }),
   readItems: (scope: Scope) => invoke<ItemsDomain>("read_items", { scope }),
   readPlugins: (scope: Scope) => invoke<PluginsDomain>("read_plugins", { scope }),
   readMcp: (scope: Scope) => invoke<McpServer[]>("read_mcp", { scope }),
