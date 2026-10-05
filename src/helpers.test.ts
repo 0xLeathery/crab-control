@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isPluginServer,
   joinArgs,
   splitArgs,
   defaultWriteLayer,
@@ -132,5 +133,13 @@ describe("joinArgs / splitArgs", () => {
   it("splits plain and quoted text", () => {
     expect(splitArgs(`a  "b c" 'd e' f\\ g`)).toEqual(["a", "b c", "d e", "f g"]);
     expect(joinArgs(["a", "b c"])).toBe(`a "b c"`);
+  });
+});
+
+describe("isPluginServer", () => {
+  it("spots plugin servers by scope or CLI name", () => {
+    expect(isPluginServer({ name: "db", scope: "plugin" })).toBe(true);
+    expect(isPluginServer({ name: "plugin:deploy:db", scope: "unknown" })).toBe(true);
+    expect(isPluginServer({ name: "gh", scope: "User config" })).toBe(false);
   });
 });

@@ -58,3 +58,21 @@ export function ruleTemplate(name: string, paths: string): string {
 export function isEditableItem(item: { source: string }): boolean {
   return item.source === "user" || item.source === "project";
 }
+
+const EDITABLE_MEMORY = new Set(["user", "project", "project-local"]);
+
+/** Parent-directory, AGENTS.md, managed and auto-memory files are view-only. */
+export function isEditableMemory(source: string): boolean {
+  return EDITABLE_MEMORY.has(source);
+}
+
+const SOURCE_NOTES: Record<string, string> = {
+  parent: "Loaded from a parent directory of this project.",
+  "agents-md": "Read only when there's no CLAUDE.md here or above (the default setting).",
+  managed: "Your organization's policy file — always loaded, read-only.",
+  "auto-memory": "Notes Claude writes itself (auto memory). MEMORY.md is loaded every session.",
+};
+
+export function memorySourceNote(source: string): string | null {
+  return SOURCE_NOTES[source] ?? null;
+}

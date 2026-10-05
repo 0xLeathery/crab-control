@@ -111,6 +111,8 @@ export interface HookEntry {
   model?: string | null;
   timeout?: number | null;
   source: Layer;
+  /** Set for hooks a plugin provides; those are read-only. */
+  plugin?: string | null;
   groupIndex: number;
   hookIndex: number;
 }

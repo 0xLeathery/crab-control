@@ -302,7 +302,13 @@ function HookRow({
         </div>
         {hookSummary(h) && <div className="path">{hookSummary(h)}</div>}
       </div>
-      <LayerBadge layer={h.source} />
+      {h.plugin ? (
+        <span className="badge muted" title="Provided by a plugin — read-only">
+          {h.plugin}
+        </span>
+      ) : (
+        <LayerBadge layer={h.source} />
+      )}
       {editable && !form && (
         <>
           <button
@@ -438,9 +444,9 @@ export function HooksPanel({
       ) : (
         list.map((h) => (
           <HookRow
-            key={`${h.source}:${h.event}:${h.groupIndex}:${h.hookIndex}`}
+            key={`${h.plugin ?? h.source}:${h.event}:${h.groupIndex}:${h.hookIndex}`}
             hook={h}
-            editable={layers.includes(h.source)}
+            editable={!h.plugin && layers.includes(h.source)}
             scope={scope}
             start={start}
           />

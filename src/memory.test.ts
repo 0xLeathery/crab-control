@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { creatableTargets, isEditableItem, memoryStarter, ruleTemplate } from "./memory";
+import {
+  creatableTargets,
+  isEditableItem,
+  isEditableMemory,
+  memorySourceNote,
+  memoryStarter,
+  ruleTemplate,
+} from "./memory";
 
 const t = (name: string, source: string, exists: boolean) =>
   ({ name, source, exists, path: `/p/${name}`, displayPath: name }) as any;
@@ -43,5 +50,19 @@ describe("isEditableItem", () => {
     expect(isEditableItem({ source: "user" } as any)).toBe(true);
     expect(isEditableItem({ source: "project" } as any)).toBe(true);
     expect(isEditableItem({ source: "plugin:fmt@mkt" } as any)).toBe(false);
+  });
+});
+
+describe("memory sources", () => {
+  it("only standard user/project files are editable", () => {
+    for (const s of ["user", "project", "project-local"]) expect(isEditableMemory(s)).toBe(true);
+    for (const s of ["parent", "agents-md", "managed", "auto-memory"]) expect(isEditableMemory(s)).toBe(false);
+  });
+  it("explains the read-only sources", () => {
+    expect(memorySourceNote("agents-md")).toMatch(/no CLAUDE\.md/);
+    expect(memorySourceNote("managed")).toMatch(/organization/i);
+    expect(memorySourceNote("auto-memory")).toMatch(/Claude writes/);
+    expect(memorySourceNote("parent")).toMatch(/parent/);
+    expect(memorySourceNote("user")).toBeNull();
   });
 });

@@ -112,3 +112,8 @@ export function splitArgs(text: string): string[] {
   if (inToken) out.push(cur);
   return out;
 }
+
+/** Plugin-provided servers belong to the plugin; they're shown read-only. */
+export function isPluginServer(s: Pick<McpServer, "name" | "scope">): boolean {
+  return s.scope === "plugin" || s.name.startsWith("plugin:");
+}
