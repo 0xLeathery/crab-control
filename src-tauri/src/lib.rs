@@ -7,6 +7,7 @@ mod creator;
 mod edits;
 mod importer;
 mod info;
+mod item_files;
 mod items;
 mod mcp;
 mod memory;
@@ -165,6 +166,13 @@ fn backup_target(scope: &Scope, t: &BackupTarget) -> Result<(PathBuf, bool, bool
             )?;
             Ok((path, false, false))
         }
+        "item" => {
+            let p = item_files::resolve_item_path(
+                &item_bases(scope),
+                t.path.as_deref().ok_or("path required")?,
+            )?;
+            Ok((p.path, false, false))
+        }
         other => Err(format!("unknown backup target: {other}")),
     }
 }
@@ -187,6 +195,31 @@ fn restore_backup(scope: Scope, target: BackupTarget, backup: String) -> writer:
         Ok((path, read_only, json)) => backups::restore_backup(&path, &backup, read_only, json),
         Err(e) => writer::save_err(e),
     }
+}
+
+/// Bases whose agents/commands/skills are editable: user, plus project in scope.
+fn item_bases(scope: &Scope) -> Vec<PathBuf> {
+    let (cdir, project) = memory_scope(scope);
+    let mut bases = vec![cdir];
+    if let Some(p) = project {
+        bases.push(p.join(".claude"));
+    }
+    bases
+}
+
+#[tauri::command]
+fn read_item(scope: Scope, path: String) -> Result<String, String> {
+    item_files::read_item(&item_bases(&scope), &path)
+}
+
+#[tauri::command]
+fn save_item(scope: Scope, path: String, content: String) -> writer::SaveResult {
+    item_files::save_item(&item_bases(&scope), &path, &content)
+}
+
+#[tauri::command]
+fn delete_item(scope: Scope, path: String) -> Result<String, String> {
+    item_files::delete_item(&item_bases(&scope), &path)
 }
 
 #[tauri::command]
@@ -325,6 +358,9 @@ pub fn run() {
             preview_mcp_toggle,
             preview_permission_rule,
             list_memory_targets,
+            read_item,
+            save_item,
+            delete_item,
             list_backups,
             read_backup,
             restore_backup,
