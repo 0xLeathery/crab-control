@@ -2,14 +2,26 @@
 import { useEffect, useMemo, useState } from "react";
 import { McpAddSpec, McpEditPreview, Scope, api } from "./api";
 import { ConfirmModal, DiffModal } from "./editor";
+import { outputStyleTemplate } from "./extras";
 import { joinArgs, splitArgs } from "./helpers";
 import { Icon } from "./ui";
 
 /* ---------- New agent / command / skill ---------- */
 
-function template(kind: string, name: string, description: string, body: string): string {
+function template(
+  kind: string,
+  name: string,
+  description: string,
+  body: string,
+  keepCoding: boolean
+): string {
   const desc = description.trim();
   const b = body.trim();
+  if (kind === "output-style") {
+    return `${outputStyleTemplate(name, desc, keepCoding)}${
+      b || "Describe the role, tone and response format Claude should use."
+    }\n`;
+  }
   if (kind === "command") {
     return `---\ndescription: ${desc}\n---\n\n${b || `# ${name}\n\nDescribe what this command does.`}\n`;
   }
@@ -24,6 +36,8 @@ function template(kind: string, name: string, description: string, body: string)
   }\n`;
 }
 
+export type ItemKind = "agent" | "command" | "skill" | "output-style";
+
 export function NewItemModal({
   scope,
   kind,
@@ -31,19 +45,21 @@ export function NewItemModal({
   onClose,
 }: {
   scope: Scope;
-  kind: "agent" | "command" | "skill";
+  kind: ItemKind;
   onCreated: (path: string) => void;
   onClose: () => void;
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [body, setBody] = useState("");
+  const [keepCoding, setKeepCoding] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const label = kind.replace("-", " ");
 
   const content = useMemo(
-    () => template(kind, name || `my-${kind}`, description, body),
-    [kind, name, description, body]
+    () => template(kind, name || `my-${kind}`, description, body, keepCoding),
+    [kind, name, description, body, keepCoding]
   );
   const nameOk = /^[A-Za-z0-9._-]+$/.test(name) && !name.startsWith(".");
 
@@ -66,7 +82,7 @@ export function NewItemModal({
     <div className="modal-scrim" onClick={() => !busy && onClose()}>
       <div className="modal" style={{ width: 640 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <strong>New {kind}</strong>
+          <strong>New {label}</strong>
           <span className="muted" style={{ fontSize: 11.5 }}>
             creates a file in the {where} scope
           </span>
@@ -94,6 +110,16 @@ export function NewItemModal({
               onChange={(e) => setDescription(e.target.value)}
             />
           </label>
+          {kind === "output-style" && (
+            <label className="tlabel">
+              <input
+                type="checkbox"
+                checked={keepCoding}
+                onChange={(e) => setKeepCoding(e.target.checked)}
+              />{" "}
+              Keep Claude Code&apos;s coding instructions (keep-coding-instructions)
+            </label>
+          )}
           <label className="fld">
             <span>Body</span>
             <textarea
@@ -119,7 +145,7 @@ export function NewItemModal({
             Cancel
           </button>
           <button className="btn primary" onClick={create} disabled={busy || !nameOk}>
-            {busy ? "Creating…" : `Create ${kind}`}
+            {busy ? "Creating…" : `Create ${label}`}
           </button>
         </div>
       </div>

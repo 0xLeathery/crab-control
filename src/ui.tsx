@@ -18,7 +18,10 @@ type IconName =
   | "refresh"
   | "dot"
   | "folder"
-  | "globe";
+  | "globe"
+  | "style"
+  | "keyboard"
+  | "statusbar";
 
 const PATHS: Record<IconName, string> = {
   overview: "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z",
@@ -40,6 +43,9 @@ const PATHS: Record<IconName, string> = {
   refresh: "M21 12a9 9 0 11-3-6.7L21 8M21 3v5h-5",
   dot: "M12 12h.01",
   folder: "M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z",
+  style: "M4 20l6-16h4l6 16M7.5 13h9",
+  keyboard: "M3 6h18v12H3zM7 10h.01M11 10h.01M15 10h.01M7 14h10",
+  statusbar: "M3 4h18v16H3zM3 15h18M7 18h4",
   globe: "M12 21a9 9 0 100-18 9 9 0 000 18zM3 12h18M12 3a14 14 0 000 18 14 14 0 000-18",
 };
 

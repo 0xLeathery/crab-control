@@ -72,6 +72,7 @@ pub fn create_item(
         "command" => base.join("commands").join(format!("{name}.md")),
         "skill" => base.join("skills").join(name).join("SKILL.md"),
         "rule" => base.join("rules").join(format!("{name}.md")),
+        "output-style" => base.join("output-styles").join(format!("{name}.md")),
         _ => return Err(format!("unknown item kind: {kind}")),
     };
     if path.exists() {
@@ -274,6 +275,12 @@ mod tests {
         };
         let r = create_item(&scope, "rule", "testing", "# Testing\n").unwrap();
         assert!(r.path.ends_with(".claude/rules/testing.md"), "{}", r.path);
+        let r = create_item(&scope, "output-style", "terse", "---\n---\n").unwrap();
+        assert!(
+            r.path.ends_with(".claude/output-styles/terse.md"),
+            "{}",
+            r.path
+        );
         assert!(create_item(&scope, "rule", "testing", "x").is_err());
         std::fs::remove_dir_all(&dir).ok();
     }

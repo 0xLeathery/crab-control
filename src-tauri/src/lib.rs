@@ -5,6 +5,7 @@
 mod backups;
 mod creator;
 mod edits;
+mod extras;
 mod importer;
 mod info;
 mod item_files;
@@ -174,7 +175,49 @@ fn backup_target(scope: &Scope, t: &BackupTarget) -> Result<(PathBuf, bool, bool
             )?;
             Ok((p.path, false, false))
         }
+        "keybindings" => Ok((extras::keybindings_path(&util::claude_dir()), false, true)),
+        "statusline" => {
+            let command = statusline_command(scope).ok_or("no status line command")?;
+            let path = extras::statusline_script(&command, &util::home(), &item_bases(scope))
+                .ok_or("the status line doesn't run an editable script")?;
+            Ok((path, false, false))
+        }
         other => Err(format!("unknown backup target: {other}")),
+    }
+}
+
+/// The effective `statusLine.command`, read from the settings layers.
+fn statusline_command(scope: &Scope) -> Option<String> {
+    settings::get_settings(scope)
+        .effective
+        .into_iter()
+        .find(|e| e.key == "statusLine")
+        .and_then(|e| e.value.get("command")?.as_str().map(String::from))
+}
+
+#[tauri::command]
+fn read_keybindings() -> Result<extras::TextFile, String> {
+    extras::read_keybindings(&util::claude_dir())
+}
+
+#[tauri::command]
+fn save_keybindings(content: String) -> writer::SaveResult {
+    extras::save_keybindings(&util::claude_dir(), &content)
+}
+
+#[tauri::command]
+fn read_statusline(scope: Scope) -> Result<Option<extras::StatusLine>, String> {
+    match statusline_command(&scope) {
+        Some(c) => extras::statusline(&c, &util::home(), &item_bases(&scope)).map(Some),
+        None => Ok(None),
+    }
+}
+
+#[tauri::command]
+fn save_statusline_script(scope: Scope, content: String) -> writer::SaveResult {
+    match statusline_command(&scope) {
+        Some(c) => extras::save_statusline_script(&c, &util::home(), &item_bases(&scope), &content),
+        None => writer::save_err("no status line is configured".into()),
     }
 }
 
@@ -416,6 +459,10 @@ pub fn run() {
             save_item,
             delete_item,
             list_backups,
+            read_keybindings,
+            save_keybindings,
+            read_statusline,
+            save_statusline_script,
             read_backup,
             restore_backup,
             read_memory,

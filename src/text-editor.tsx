@@ -15,8 +15,14 @@ export function TextFileEditor({
   onSave,
   onClose,
   onSaved,
+  validate,
+  warnOverLines = 200,
 }: {
   editing: Editing;
+  /** Return an error to block review (e.g. invalid JSON). */
+  validate?: (text: string) => string | null;
+  /** Warn past this many lines (the memory guidance); 0 turns it off. */
+  warnOverLines?: number;
   /** Persist the text; the editor shows the diff and confirms first. */
   onSave: (text: string) => Promise<SaveResult>;
   onClose: () => void;
@@ -27,6 +33,8 @@ export function TextFileEditor({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const lines = text.split("\n").length;
+  const invalid = validate?.(text) ?? null;
+  const long = warnOverLines > 0 && lines > warnOverLines;
 
   const save = async () => {
     setBusy(true);
@@ -71,8 +79,9 @@ export function TextFileEditor({
             onChange={(e) => setText(e.target.value)}
             rows={Math.min(30, Math.max(12, lines + 1))}
           />
-          <div className={`fhint ${lines > 200 ? "err" : ""}`}>
-            {lines} lines{lines > 200 ? " — the docs suggest keeping memory files under 200" : ""}
+          <div className={`fhint ${long || invalid ? "err" : ""}`}>
+            {invalid ??
+              `${lines} lines${long ? ` — the docs suggest keeping memory files under ${warnOverLines}` : ""}`}
           </div>
         </div>
         <div className="modal-foot">
@@ -81,7 +90,7 @@ export function TextFileEditor({
           </button>
           <button
             className="btn primary"
-            disabled={text === editing.original}
+            disabled={text === editing.original || !!invalid}
             onClick={() => setReviewing(true)}
           >
             Review changes…

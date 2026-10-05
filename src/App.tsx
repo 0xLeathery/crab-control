@@ -14,11 +14,13 @@ import {
 import { CrabMark, Icon } from "./ui";
 import {
   ItemsPanel,
+  KeybindingsPanel,
   McpPanel,
   MemoryPanel,
   OverviewPanel,
   PluginsPanel,
   SettingsPanel,
+  StatusLinePanel,
   TipsPanel,
 } from "./panels";
 import { HooksPanel, PermissionsPanel } from "./edit-panels";
@@ -34,9 +36,12 @@ type DomainId =
   | "agents"
   | "commands"
   | "skills"
+  | "outputStyles"
   | "memory"
   | "permissions"
-  | "hooks";
+  | "hooks"
+  | "keybindings"
+  | "statusline";
 
 const DOMAINS: { id: DomainId; label: string; icon: any }[] = [
   { id: "overview", label: "Overview", icon: "overview" },
@@ -47,9 +52,12 @@ const DOMAINS: { id: DomainId; label: string; icon: any }[] = [
   { id: "agents", label: "Agents", icon: "agents" },
   { id: "commands", label: "Commands", icon: "commands" },
   { id: "skills", label: "Skills", icon: "skills" },
+  { id: "outputStyles", label: "Output Styles", icon: "style" },
   { id: "memory", label: "Memory", icon: "memory" },
   { id: "permissions", label: "Permissions", icon: "lock" },
   { id: "hooks", label: "Hooks", icon: "hooks" },
+  { id: "keybindings", label: "Keybindings", icon: "keyboard" },
+  { id: "statusline", label: "Status line", icon: "statusbar" },
 ];
 
 interface PaletteEntry {
@@ -105,7 +113,7 @@ export default function App() {
     api
       .readItems(s)
       .then(setItems)
-      .catch(() => setItems({ agents: [], commands: [], skills: [], memory: [] }));
+      .catch(() => setItems({ agents: [], commands: [], skills: [], outputStyles: [], memory: [] }));
     api
       .readPlugins(s)
       .then(setPlugins)
@@ -145,7 +153,7 @@ export default function App() {
     api
       .readItems(scope)
       .then(setItems)
-      .catch(() => setItems({ agents: [], commands: [], skills: [], memory: [] }));
+      .catch(() => setItems({ agents: [], commands: [], skills: [], outputStyles: [], memory: [] }));
   }, [scope]);
 
   // Lazy-load MCP the first time its panel needs it.
@@ -190,6 +198,7 @@ export default function App() {
     agents: items ? items.agents.length : null,
     commands: items ? items.commands.length : null,
     skills: items ? items.skills.length : null,
+    outputStyles: items ? items.outputStyles.length : null,
     memory: items ? items.memory.length : null,
     permissions: settings ? permissionRules(settings.files).length : null,
     hooks: hooks ? hooks.length : null,
@@ -285,7 +294,7 @@ export default function App() {
             >
               <Icon name={d.icon} size={16} className="nav-ico" />
               <span className="label">{d.label}</span>
-              {d.id !== "overview" && (
+              {d.id in counts && (
                 <span className="count">{counts[d.id] == null ? "…" : counts[d.id]}</span>
               )}
             </button>
@@ -382,6 +391,19 @@ export default function App() {
               onReload={reloadItems}
             />
           )}
+          {active === "outputStyles" && (
+            <ItemsPanel
+              title="Output Styles"
+              subtitle="Custom output styles from user, project, and plugins. Pick the active one with the outputStyle setting or /output-style."
+              items={items?.outputStyles ?? null}
+              filter={filter}
+              scope={scope}
+              kind="output-style"
+              onReload={reloadItems}
+            />
+          )}
+          {active === "keybindings" && <KeybindingsPanel />}
+          {active === "statusline" && <StatusLinePanel scope={scope} />}
           {active === "tips" && <TipsPanel tips={tips} mcpLoaded={mcp !== null} filter={filter} />}
           {active === "memory" && (
             <MemoryPanel

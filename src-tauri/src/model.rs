@@ -106,6 +106,7 @@ pub struct ItemsDomain {
     pub agents: Vec<Item>,
     pub commands: Vec<Item>,
     pub skills: Vec<Item>,
+    pub output_styles: Vec<Item>,
     /// CLAUDE.md files and rules/ directories (read-only).
     pub memory: Vec<Item>,
 }
