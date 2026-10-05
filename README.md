@@ -79,6 +79,9 @@ Each save runs through one pipeline:
 2. **Timestamped backup** — `<file>.backup.<epoch-ms>`, newest five kept.
 3. **Validation** — invalid JSON is rejected before anything touches disk.
 4. **Atomic write** — temp file + rename, preserving your key order and formatting.
+5. **History** — every saved file has a History view: compare any of its last
+   five backups with the current file and restore it (the current version is
+   backed up first, so a restore can be undone).
 
 Plus, always:
 

@@ -5,6 +5,7 @@ import {
   fmtTime,
   mcpScopeFlag,
   permissionRules,
+  relativeTime,
   statusClass,
 } from "./helpers";
 
@@ -105,5 +106,18 @@ describe("editableLayers", () => {
       { layer: "project", readOnly: false },
     ] as any;
     expect(editableLayers(files)).toEqual(["user", "project"]);
+  });
+});
+
+describe("relativeTime", () => {
+  const now = Date.UTC(2026, 9, 5, 12, 0, 0);
+  it.each([
+    [now - 20_000, "just now"],
+    [now - 5 * 60_000, "5 min ago"],
+    [now - 3 * 3_600_000, "3 h ago"],
+    [now - 2 * 86_400_000, "2 days ago"],
+    [now - 86_400_000, "1 day ago"],
+  ])("%s → %s", (ms, label) => {
+    expect(relativeTime(ms, now)).toBe(label);
   });
 });

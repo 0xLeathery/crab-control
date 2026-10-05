@@ -64,3 +64,14 @@ export function permissionRules(files: LayerFile[]): PermissionRule[] {
 export function editableLayers(files: Pick<LayerFile, "layer" | "readOnly">[]): Layer[] {
   return files.filter((f) => !f.readOnly).map((f) => f.layer);
 }
+
+export function relativeTime(ms: number, now: number = Date.now()): string {
+  const s = Math.max(0, Math.round((now - ms) / 1000));
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} h ago`;
+  const d = Math.floor(h / 24);
+  return `${d} day${d === 1 ? "" : "s"} ago`;
+}
