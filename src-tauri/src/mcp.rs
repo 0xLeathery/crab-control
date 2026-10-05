@@ -123,7 +123,7 @@ pub fn claude_output(args: &[&str]) -> Result<String, String> {
 
 /// Run `claude <args>` and return (success, combined output). Checks exit code
 /// so callers can distinguish real success from a CLI error message.
-fn claude_run(args: &[&str]) -> Result<(bool, String), String> {
+pub fn claude_run(args: &[&str]) -> Result<(bool, String), String> {
     let bin = resolve_claude().ok_or_else(|| "claude CLI not found".to_string())?;
     let out = Command::new(&bin)
         .args(args)
@@ -154,18 +154,33 @@ pub fn remove(name: &str, scope_flag: &str) -> Result<String, String> {
         args.push(scope_flag);
     }
     let (success, out) = claude_run(&args)?;
+    cli_result(
+        success,
+        &out,
+        &format!("Removed {name}."),
+        "claude mcp remove failed",
+    )
+}
+
+/// Map a CLI run to a result by its exit status, falling back to a message
+/// when it printed nothing.
+pub fn cli_result(
+    success: bool,
+    out: &str,
+    ok_fallback: &str,
+    err_fallback: &str,
+) -> Result<String, String> {
+    let pick = |fallback: &str| {
+        if out.trim().is_empty() {
+            fallback.to_string()
+        } else {
+            out.to_string()
+        }
+    };
     if success {
-        Ok(if out.is_empty() {
-            format!("Removed {name}.")
-        } else {
-            out
-        })
+        Ok(pick(ok_fallback))
     } else {
-        Err(if out.is_empty() {
-            "claude mcp remove failed".into()
-        } else {
-            out
-        })
+        Err(pick(err_fallback))
     }
 }
 
@@ -480,5 +495,15 @@ mod tests {
         assert_eq!(gh.status.as_deref(), Some("Connected"));
         assert!(gh.inline_secrets);
         assert_eq!(merged.len(), 2);
+    }
+
+    #[test]
+    fn cli_result_respects_exit_status() {
+        let r = |ok, out| cli_result(ok, out, "Added x.", "claude mcp add failed");
+        assert_eq!(r(true, ""), Ok("Added x.".to_string()));
+        assert_eq!(r(true, "done"), Ok("done".to_string()));
+        // A failed command is an error even when it printed something.
+        assert_eq!(r(false, "Error: exists"), Err("Error: exists".to_string()));
+        assert_eq!(r(false, ""), Err("claude mcp add failed".to_string()));
     }
 }

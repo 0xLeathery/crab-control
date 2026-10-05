@@ -59,7 +59,11 @@ keyboard-driven.
   for objects and arrays, and Unset. Pick which layer changes are written to.
   Values containing masked secrets stay read-only here (use the raw editor).
 - **Plugins** — enable/disable.
-- **MCP** — add a server, remove a server, enable/disable project servers.
+- **MCP** — add, edit, or remove servers; enable/disable project servers.
+  Project servers (`.mcp.json`) are edited in place with a masked diff;
+  user/local servers are owned by the CLI, so an edit runs
+  `claude mcp remove` + `claude mcp add` (shown first) and re-adds the
+  original if the add fails. Masked values you leave untouched are kept.
 - **Permissions** — add or remove `allow` / `deny` / `ask` rules in any
   editable layer.
 - **Hooks** — add, edit, or remove hooks of every type (`command`, `http`,
