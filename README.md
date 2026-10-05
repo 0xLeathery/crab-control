@@ -63,6 +63,11 @@ keyboard-driven.
 - **Permissions** — add or remove `allow` / `deny` / `ask` rules in any
   editable layer.
 - **Hooks** — add a command hook (event, matcher, timeout) or remove one.
+- **Agents, commands, skills** — edit your own (user/project) files in place,
+  view their history, or delete them (moved to `.claude/.crab-trash/`, not
+  erased). Plugin-provided items stay read-only.
+- **Memory** — edit `CLAUDE.md` files and rules; create a new rule (optionally
+  scoped with `paths:` globs).
 
 ### Create new things
 - Add an MCP server (builds a `claude mcp add …` command with a masked preview).

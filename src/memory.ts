@@ -42,3 +42,19 @@ export function memoryStarter(t: MemoryTarget): string {
     "",
   ].join("\n");
 }
+
+/** A rules file; `paths` (comma-separated globs) scopes it per the memory docs. */
+export function ruleTemplate(name: string, paths: string): string {
+  const globs = paths
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  const body = `# ${name}\n\n- \n`;
+  if (!globs.length) return body;
+  return `---\npaths:\n${globs.map((g) => `  - "${g}"`).join("\n")}\n---\n\n${body}`;
+}
+
+/** Plugin-provided items are read-only: plugin updates would overwrite edits. */
+export function isEditableItem(item: { source: string }): boolean {
+  return item.source === "user" || item.source === "project";
+}

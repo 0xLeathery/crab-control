@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { creatableTargets, memoryStarter } from "./memory";
+import { creatableTargets, isEditableItem, memoryStarter, ruleTemplate } from "./memory";
 
 const t = (name: string, source: string, exists: boolean) =>
   ({ name, source, exists, path: `/p/${name}`, displayPath: name }) as any;
@@ -26,5 +26,22 @@ describe("memoryStarter", () => {
   });
   it("frames the user file as personal preferences for every project", () => {
     expect(memoryStarter(t("CLAUDE.md", "user", false))).toMatch(/every project/i);
+  });
+});
+
+describe("ruleTemplate", () => {
+  it("adds paths frontmatter only when patterns are given", () => {
+    expect(ruleTemplate("testing", "")).toBe("# testing\n\n- \n");
+    expect(ruleTemplate("api", " src/api/**/*.ts , lib/*.ts ")).toBe(
+      '---\npaths:\n  - "src/api/**/*.ts"\n  - "lib/*.ts"\n---\n\n# api\n\n- \n'
+    );
+  });
+});
+
+describe("isEditableItem", () => {
+  it("allows user and project items, not plugin ones", () => {
+    expect(isEditableItem({ source: "user" } as any)).toBe(true);
+    expect(isEditableItem({ source: "project" } as any)).toBe(true);
+    expect(isEditableItem({ source: "plugin:fmt@mkt" } as any)).toBe(false);
   });
 });
