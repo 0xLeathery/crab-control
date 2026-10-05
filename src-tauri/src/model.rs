@@ -126,6 +126,8 @@ pub struct HookEntry {
     pub model: Option<String>,
     pub timeout: Option<u64>,
     pub source: Layer,
+    /// Set for hooks a plugin provides (read-only), e.g. `plugin:name@market`.
+    pub plugin: Option<String>,
     /// Position within `hooks.<event>` / the group's `hooks` list, so the UI
     /// can target this hook for removal.
     pub group_index: usize,

@@ -14,6 +14,7 @@ mod mcp;
 mod mcp_edit;
 mod memory;
 mod model;
+mod plugin_sources;
 mod plugins;
 mod schema;
 mod secrets;

@@ -1,10 +1,43 @@
 import { useEffect, useState } from "react";
 import { Item, MemoryTarget, Scope, api } from "../api";
-import { creatableTargets, memoryStarter, ruleTemplate } from "../memory";
+import {
+  creatableTargets,
+  isEditableMemory,
+  memorySourceNote,
+  memoryStarter,
+  ruleTemplate,
+} from "../memory";
 import { Empty, Icon } from "../ui";
 import { Loading } from "./common";
 import { Editing, TextFileEditor } from "../text-editor";
 import { HistoryModal } from "../history";
+
+function ReadOnlyMemoryRow({ item: i }: { item: Item }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="row" style={{ flexWrap: "wrap" }}>
+      <div className="grow">
+        <div className="nm">
+          {i.name}
+          <span className="badge muted">
+            <Icon name="lock" size={10} /> {i.source}
+          </span>
+          {i.lineCount != null && <span className="badge">{i.lineCount} lines</span>}
+        </div>
+        <div className="desc">{memorySourceNote(i.source)}</div>
+        <div className="path">{i.displayPath}</div>
+      </div>
+      <button className="btn" onClick={() => setOpen((o) => !o)}>
+        {open ? "Hide" : "Preview"}
+      </button>
+      {open && (
+        <pre className="preview" style={{ flexBasis: "100%" }}>
+          {i.preview}
+        </pre>
+      )}
+    </div>
+  );
+}
 
 function NewRuleModal({
   scope,
@@ -133,7 +166,9 @@ export function MemoryPanel({
   return (
     <div className="panel">
       <h1>Memory</h1>
-      <div className="sub">CLAUDE.md files and rules loaded into Claude's context.</div>
+      <div className="sub">
+        CLAUDE.md files, rules, AGENTS.md and auto memory loaded into Claude&apos;s context.
+      </div>
 
       {note && (
         <div className="okbar">
@@ -164,25 +199,29 @@ export function MemoryPanel({
       {list.length === 0 ? (
         <Empty>No memory files{f ? " match the filter" : " yet"}.</Empty>
       ) : (
-        list.map((i) => (
-          <div className="row" key={i.path}>
-            <div className="grow">
-              <div className="nm">
-                {i.name}
-                <span className="badge layer">{i.source}</span>
-                {i.lineCount != null && <span className="badge">{i.lineCount} lines</span>}
+        list.map((i) =>
+          isEditableMemory(i.source) ? (
+            <div className="row" key={i.path}>
+              <div className="grow">
+                <div className="nm">
+                  {i.name}
+                  <span className="badge layer">{i.source}</span>
+                  {i.lineCount != null && <span className="badge">{i.lineCount} lines</span>}
+                </div>
+                {i.description && <div className="desc">{i.description}</div>}
+                <div className="path">{i.displayPath}</div>
               </div>
-              {i.description && <div className="desc">{i.description}</div>}
-              <div className="path">{i.displayPath}</div>
+              <button className="btn" onClick={() => setHistory(i)}>
+                History
+              </button>
+              <button className="btn" onClick={() => open(i.path, `${i.source} ${i.name}`)}>
+                View / edit
+              </button>
             </div>
-            <button className="btn" onClick={() => setHistory(i)}>
-              History
-            </button>
-            <button className="btn" onClick={() => open(i.path, `${i.source} ${i.name}`)}>
-              View / edit
-            </button>
-          </div>
-        ))
+          ) : (
+            <ReadOnlyMemoryRow key={i.path} item={i} />
+          )
+        )
       )}
 
       {newRule && (

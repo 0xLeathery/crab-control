@@ -189,6 +189,7 @@ pub fn hooks_in(content: &Value, layer: Layer) -> Vec<HookEntry> {
                     model: text("model").map(String::from),
                     timeout: h.and_then(|h| h.get("timeout")).and_then(Value::as_u64),
                     source: layer,
+                    plugin: None,
                     group_index,
                     hook_index,
                 }
@@ -213,6 +214,9 @@ pub fn get_hooks(scope: &Scope) -> Vec<HookEntry> {
         if let Some(content) = &file.content {
             entries.extend(hooks_in(content, file.layer));
         }
+    }
+    for (label, root) in crate::items::plugin_roots() {
+        entries.extend(crate::plugin_sources::plugin_hooks(&label, &root));
     }
     entries
 }

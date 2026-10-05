@@ -183,7 +183,7 @@ fn scan_skills_dir(dir: &Path, source: &str) -> Vec<Item> {
 }
 
 /// Enumerate installed plugin install paths as (label, path).
-fn plugin_roots() -> Vec<(String, PathBuf)> {
+pub(crate) fn plugin_roots() -> Vec<(String, PathBuf)> {
     let mut out = Vec::new();
     let file = claude_dir().join("plugins").join("installed_plugins.json");
     let Ok(Some(v)) = crate::util::read_json(&file) else {
@@ -246,6 +246,92 @@ pub fn scan_memory(cdir: &Path, project: Option<&Path>) -> Vec<Item> {
     out
 }
 
+/// The directory name Claude Code uses under `~/.claude/projects/`: the path
+/// with every non-alphanumeric character replaced by `-`.
+pub fn project_slug(path: &Path) -> String {
+    path.to_string_lossy()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect()
+}
+
+/// Auto memory is keyed by the git repository, so worktrees and
+/// subdirectories share it; outside a repo, the project root.
+fn memory_root(project: &Path) -> &Path {
+    project
+        .ancestors()
+        .find(|a| a.join(".git").exists())
+        .unwrap_or(project)
+}
+
+/// The organization-wide CLAUDE.md for this OS.
+pub fn managed_claude_md() -> PathBuf {
+    if cfg!(target_os = "macos") {
+        PathBuf::from("/Library/Application Support/ClaudeCode/CLAUDE.md")
+    } else if cfg!(windows) {
+        PathBuf::from(r"C:\Program Files\ClaudeCode\CLAUDE.md")
+    } else {
+        PathBuf::from("/etc/claude-code/CLAUDE.md")
+    }
+}
+
+/// `scan_memory` plus the read-only sources: CLAUDE.md files in parent
+/// directories, AGENTS.md, the managed policy file and auto memory.
+pub fn scan_memory_in(cdir: &Path, project: Option<&Path>, managed: Option<&Path>) -> Vec<Item> {
+    let mut out = Vec::new();
+    let label = |dir: &Path, file: &str| match dir.file_name() {
+        Some(n) => format!("{}/{file}", n.to_string_lossy()),
+        None => format!("/{file}"),
+    };
+    if let Some(p) = project {
+        // Root first, matching the order Claude Code concatenates them in.
+        let parents: Vec<&Path> = p.ancestors().skip(1).collect();
+        for dir in parents.iter().rev() {
+            for f in ["CLAUDE.md", "CLAUDE.local.md"] {
+                let path = dir.join(f);
+                if path.is_file() {
+                    out.push(memory_item(&path, label(dir, f), "parent"));
+                }
+            }
+        }
+        for dir in parents.iter().rev().copied().chain([p]) {
+            for f in ["AGENTS.md", ".claude/AGENTS.md"] {
+                let path = dir.join(f);
+                if path.is_file() {
+                    let name = if dir == p {
+                        f.to_string()
+                    } else {
+                        label(dir, f)
+                    };
+                    out.push(memory_item(&path, name, "agents-md"));
+                }
+            }
+        }
+    }
+    if let Some(m) = managed.filter(|m| m.is_file()) {
+        out.push(memory_item(m, "CLAUDE.md".into(), "managed"));
+    }
+    if let Some(p) = project {
+        let dir = cdir
+            .join("projects")
+            .join(project_slug(memory_root(p)))
+            .join("memory");
+        let mut files = Vec::new();
+        collect_md(&dir, &mut files);
+        // The MEMORY.md index first, then topic files.
+        files.sort_by_key(|f| (!f.ends_with("MEMORY.md"), f.clone()));
+        for f in files {
+            let name = f
+                .strip_prefix(&dir)
+                .unwrap_or(&f)
+                .to_string_lossy()
+                .replace('\\', "/");
+            out.push(memory_item(&f, name, "auto-memory"));
+        }
+    }
+    out
+}
+
 fn push_memory(out: &mut Vec<Item>, base: &Path, rel: &str, source: &str) {
     let path = base.join(rel);
     if path.is_file() {
@@ -278,7 +364,12 @@ pub fn get_items(scope: &Scope) -> ItemsDomain {
         (ScopeKind::Project, Some(p)) => Some(PathBuf::from(p)),
         _ => None,
     };
-    let memory = scan_memory(&cdir, project.as_deref());
+    let mut memory = scan_memory(&cdir, project.as_deref());
+    memory.extend(scan_memory_in(
+        &cdir,
+        project.as_deref(),
+        Some(&managed_claude_md()),
+    ));
 
     // User scope (always shown).
     agents.extend(scan_md_dir(&cdir.join("agents"), "user"));
@@ -431,5 +522,55 @@ mod tests {
         let (n, d) = fm("---\r\nname: w\r\ndescription: >\r\n  a\r\n  b\r\n---\r\n");
         assert_eq!(n.as_deref(), Some("w"));
         assert_eq!(d.as_deref(), Some("a b"));
+    }
+
+    #[test]
+    fn scans_parent_agents_managed_and_auto_memory() {
+        let root = tmp("memory-extra");
+        let cdir = root.join("home/.claude");
+        let repo = root.join("repo");
+        let proj = repo.join("sub");
+        std::fs::create_dir_all(repo.join(".git")).unwrap();
+        write(&repo.join("CLAUDE.md"), "Repo rules\n");
+        write(&repo.join("CLAUDE.local.md"), "Mine\n");
+        write(&proj.join("AGENTS.md"), "Agents file\n");
+        write(&root.join("managed/CLAUDE.md"), "Org policy\n");
+        let mem = cdir
+            .join("projects")
+            .join(project_slug(&repo))
+            .join("memory");
+        write(&mem.join("MEMORY.md"), "- [Role](user_role.md)\n");
+        write(&mem.join("user_role.md"), "Senior dev\n");
+
+        let items = scan_memory_in(&cdir, Some(&proj), Some(&root.join("managed/CLAUDE.md")));
+        let got: Vec<(String, String)> = items
+            .iter()
+            .map(|i| (i.source.clone(), i.name.clone()))
+            .collect();
+        let e = |a: &str, b: &str| (a.to_string(), b.to_string());
+        assert_eq!(
+            got,
+            vec![
+                e("parent", "repo/CLAUDE.md"),
+                e("parent", "repo/CLAUDE.local.md"),
+                e("agents-md", "AGENTS.md"),
+                e("managed", "CLAUDE.md"),
+                e("auto-memory", "MEMORY.md"),
+                e("auto-memory", "user_role.md"),
+            ]
+        );
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn project_slug_matches_claude_code() {
+        assert_eq!(
+            project_slug(Path::new("/home/user/crab-control")),
+            "-home-user-crab-control"
+        );
+        assert_eq!(
+            project_slug(Path::new("/Users/a.b/my_app")),
+            "-Users-a-b-my-app"
+        );
     }
 }

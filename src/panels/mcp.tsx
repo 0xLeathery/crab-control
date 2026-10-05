@@ -3,7 +3,7 @@ import { McpServer, MutationPreview, Scope, api } from "../api";
 import { Empty, Icon } from "../ui";
 import { ConfirmModal, PreviewConfirm } from "../editor";
 import { AddMcpModal, McpEditTarget } from "../create";
-import { mcpScopeFlag, statusClass } from "../helpers";
+import { isPluginServer, mcpScopeFlag, statusClass } from "../helpers";
 import { Loading } from "./common";
 
 /* ---------- MCP ---------- */
@@ -120,6 +120,7 @@ export function McpPanel({
             s.scope.toLowerCase().includes("project") ||
             s.source.toLowerCase().includes(".mcp.json");
           const isClaudeAi = mcpScopeFlag(s) === "claudeai";
+          const isPlugin = isPluginServer(s);
           return (
             <div className="row" key={s.name + s.source}>
               <div className="grow">
@@ -138,7 +139,7 @@ export function McpPanel({
               {s.status && (
                 <span className={`badge ${statusClass(s.status)}`}>{s.status}</span>
               )}
-              {isProjectMcp && (
+              {isProjectMcp && !isPlugin && (
                 <>
                   <button className="btn" onClick={() => startToggle(s, true)}>
                     Enable
@@ -148,7 +149,11 @@ export function McpPanel({
                   </button>
                 </>
               )}
-              {isClaudeAi ? (
+              {isPlugin ? (
+                <span className="badge muted" title="Provided by a plugin — manage it from Plugins">
+                  plugin
+                </span>
+              ) : isClaudeAi ? (
                 <span
                   className="badge muted"
                   title="Provided by your connected claude.ai account — remove it in claude.ai or via Claude Code's /mcp menu"

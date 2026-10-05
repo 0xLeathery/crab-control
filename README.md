@@ -39,9 +39,14 @@ keyboard-driven.
   status at a glance.
 - **Memory.** `CLAUDE.md` / `CLAUDE.local.md` files and `rules/` directories,
   user and project. View and edit any of them (diff → confirm → backup), or
-  create a missing `CLAUDE.md` from a starter template.
+  create a missing `CLAUDE.md` from a starter template. Also shown, read-only:
+  `CLAUDE.md` files in parent directories, `AGENTS.md`, your organization's
+  managed `CLAUDE.md`, and the project's auto memory
+  (`~/.claude/projects/<project>/memory/`).
 - **Plugins & marketplaces, agents, commands, skills, hooks.** Names, scopes,
-  source paths, and previews — including everything contributed by plugins.
+  source paths, and previews — including everything contributed by plugins,
+  plugin hooks (`hooks/hooks.json`, `plugin.json`) and plugin MCP servers
+  (`.mcp.json`, `plugin.json`), which are read-only.
 - **Tips.** Checks your config against the Claude Code docs: secrets readable
   by Claude, risky permission modes, inline secrets in a shared `.mcp.json`,
   failing MCP servers, fragile hook paths, missing or overlong `CLAUDE.md`. Each

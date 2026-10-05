@@ -289,7 +289,7 @@ fn enrich(server: &mut McpServer) {
 }
 
 /// Read MCP servers defined in a JSON `mcpServers` object.
-fn servers_from_map(map: &Value, scope: &str, source: &str, out: &mut Vec<McpServer>) {
+pub(crate) fn servers_from_map(map: &Value, scope: &str, source: &str, out: &mut Vec<McpServer>) {
     let Some(obj) = map.as_object() else {
         return;
     };
@@ -413,6 +413,10 @@ pub fn get_mcp(scope: &Scope) -> Vec<McpServer> {
         }
     }
     let _ = claude_dir(); // (reserved for future file sources)
+
+    for (label, root) in crate::items::plugin_roots() {
+        file_servers.extend(crate::plugin_sources::plugin_mcp(&label, &root));
+    }
 
     merge_servers(servers, file_servers)
 }
