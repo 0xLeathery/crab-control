@@ -63,6 +63,17 @@ export interface ItemsDomain {
   memory: Item[];
 }
 
+export interface BackupEntry {
+  path: string;
+  displayPath: string;
+  savedAt: number;
+  bytes: number;
+}
+
+export type BackupTarget =
+  | { kind: "settings"; layer: Layer }
+  | { kind: "memory"; path: string };
+
 export interface MemoryTarget {
   name: string;
   source: string;
@@ -232,6 +243,12 @@ export const api = {
   readSettings: (scope: Scope) => invoke<SettingsDomain>("read_settings", { scope }),
   readHooks: (scope: Scope) => invoke<HookEntry[]>("read_hooks", { scope }),
   listMemoryTargets: (scope: Scope) => invoke<MemoryTarget[]>("list_memory_targets", { scope }),
+  listBackups: (scope: Scope, target: BackupTarget) =>
+    invoke<BackupEntry[]>("list_backups", { scope, target }),
+  readBackup: (scope: Scope, target: BackupTarget, backup: string) =>
+    invoke<string>("read_backup", { scope, target, backup }),
+  restoreBackup: (scope: Scope, target: BackupTarget, backup: string) =>
+    invoke<SaveResult>("restore_backup", { scope, target, backup }),
   readMemory: (scope: Scope, path: string) => invoke<MemoryFile>("read_memory", { scope, path }),
   saveMemory: (scope: Scope, path: string, content: string) =>
     invoke<SaveResult>("save_memory", { scope, path, content }),

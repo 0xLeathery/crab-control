@@ -4,6 +4,7 @@ import { DiffModal } from "../editor";
 import { creatableTargets, memoryStarter } from "../memory";
 import { Empty, Icon } from "../ui";
 import { Loading } from "./common";
+import { HistoryModal } from "../history";
 
 interface Editing {
   path: string;
@@ -106,6 +107,7 @@ export function MemoryPanel({
 }) {
   const [targets, setTargets] = useState<MemoryTarget[]>([]);
   const [editing, setEditing] = useState<Editing | null>(null);
+  const [history, setHistory] = useState<Item | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -184,6 +186,9 @@ export function MemoryPanel({
               {i.description && <div className="desc">{i.description}</div>}
               <div className="path">{i.displayPath}</div>
             </div>
+            <button className="btn" onClick={() => setHistory(i)}>
+              History
+            </button>
             <button className="btn" onClick={() => open(i.path, `${i.source} ${i.name}`)}>
               View / edit
             </button>
@@ -191,6 +196,21 @@ export function MemoryPanel({
         ))
       )}
 
+      {history && (
+        <HistoryModal
+          scope={scope}
+          target={{ kind: "memory", path: history.path }}
+          title={`${history.source} ${history.name}`}
+          loadCurrent={async () => (await api.readMemory(scope, history.path)).text}
+          onClose={() => setHistory(null)}
+          onRestored={(backup) => {
+            setHistory(null);
+            setNote(backup ? `Restored. Previous version backed up: ${backup}` : "Restored.");
+            onReload();
+            setTimeout(() => setNote(null), 6000);
+          }}
+        />
+      )}
       {editing && (
         <MemoryEditor
           key={editing.path}

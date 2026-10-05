@@ -23,6 +23,7 @@ import {
   settingRows,
 } from "../settings-edit";
 import { Loading } from "./common";
+import { HistoryModal } from "../history";
 
 /* ---------- Settings ---------- */
 
@@ -39,6 +40,7 @@ function FileCard({
   const [editing, setEditing] = useState(false);
   const [raw, setRaw] = useState<RawFile | null>(null);
   const [loadingRaw, setLoadingRaw] = useState(false);
+  const [history, setHistory] = useState(false);
   const editable = !file.readOnly;
 
   const startEdit = async () => {
@@ -94,8 +96,32 @@ function FileCard({
             {loadingRaw ? "…" : editing ? "View" : file.present ? "Edit" : "Create"}
           </button>
         )}
+        {editable && file.present && (
+          <button
+            className="btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              setHistory(true);
+            }}
+          >
+            History
+          </button>
+        )}
         <span className="meta">{file.displayPath}</span>
       </div>
+      {history && (
+        <HistoryModal
+          scope={scope}
+          target={{ kind: "settings", layer: file.layer }}
+          title={file.label}
+          loadCurrent={async () => (await api.readRawSettings(scope, file.layer)).text}
+          onClose={() => setHistory(false)}
+          onRestored={(backup) => {
+            setHistory(false);
+            onChanged(backup);
+          }}
+        />
+      )}
       {open && (
         <div className="card-body">
           {editing && raw ? (
