@@ -2,6 +2,7 @@
 //! Phase 1 is strictly read-only: every command discovers and returns config
 //! state; nothing here writes to the user's config files.
 
+mod backups;
 mod creator;
 mod edits;
 mod importer;
@@ -135,6 +136,57 @@ fn memory_scope(scope: &Scope) -> (PathBuf, Option<PathBuf>) {
         _ => None,
     };
     (util::claude_dir(), project)
+}
+
+/// Which file a History action is about: a settings layer or a memory file.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BackupTarget {
+    kind: String,
+    layer: Option<Layer>,
+    path: Option<String>,
+}
+
+/// Resolve to (path, read_only, is_json) using the same guards as saving.
+fn backup_target(scope: &Scope, t: &BackupTarget) -> Result<(PathBuf, bool, bool), String> {
+    match t.kind.as_str() {
+        "settings" => {
+            let layer = t.layer.ok_or("layer required")?;
+            let (path, read_only) = settings::layer_path(scope, layer)
+                .ok_or_else(|| "layer not available for this scope".to_string())?;
+            Ok((path, read_only, true))
+        }
+        "memory" => {
+            let (cdir, project) = memory_scope(scope);
+            let path = memory::resolve_memory_path(
+                &cdir,
+                project.as_deref(),
+                t.path.as_deref().ok_or("path required")?,
+            )?;
+            Ok((path, false, false))
+        }
+        other => Err(format!("unknown backup target: {other}")),
+    }
+}
+
+#[tauri::command]
+fn list_backups(scope: Scope, target: BackupTarget) -> Result<Vec<backups::BackupEntry>, String> {
+    let (path, _, _) = backup_target(&scope, &target)?;
+    Ok(backups::list_backups(&path))
+}
+
+#[tauri::command]
+fn read_backup(scope: Scope, target: BackupTarget, backup: String) -> Result<String, String> {
+    let (path, _, _) = backup_target(&scope, &target)?;
+    backups::read_backup(&path, &backup)
+}
+
+#[tauri::command]
+fn restore_backup(scope: Scope, target: BackupTarget, backup: String) -> writer::SaveResult {
+    match backup_target(&scope, &target) {
+        Ok((path, read_only, json)) => backups::restore_backup(&path, &backup, read_only, json),
+        Err(e) => writer::save_err(e),
+    }
 }
 
 #[tauri::command]
@@ -273,6 +325,9 @@ pub fn run() {
             preview_mcp_toggle,
             preview_permission_rule,
             list_memory_targets,
+            list_backups,
+            read_backup,
+            restore_backup,
             read_memory,
             save_memory,
             preview_hook_add,
