@@ -55,7 +55,7 @@ export function McpPanel({
     setActionBusy(true);
     setActionError(null);
     try {
-      const out = await api.mcpRemove(removeTarget.name, mcpScopeFlag(removeTarget));
+      const out = await api.mcpRemove(scope, removeTarget.name, mcpScopeFlag(removeTarget));
       setRemoveTarget(null);
       setNote(out || `Removed ${removeTarget.name}.`);
       onReload();

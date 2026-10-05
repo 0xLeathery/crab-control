@@ -121,11 +121,19 @@ pub fn claude_output(args: &[&str]) -> Result<String, String> {
     }
 }
 
-/// Run `claude <args>` and return (success, combined output). Checks exit code
-/// so callers can distinguish real success from a CLI error message.
-pub fn claude_run(args: &[&str]) -> Result<(bool, String), String> {
+/// Run `claude <args>` in `cwd` (the CLI reads project and local settings
+/// from it) and return (success, combined output). Checks the exit code so
+/// callers can tell real success from a CLI error message.
+pub fn claude_run_in(
+    args: &[&str],
+    cwd: Option<&std::path::Path>,
+) -> Result<(bool, String), String> {
     let bin = resolve_claude().ok_or_else(|| "claude CLI not found".to_string())?;
-    let out = Command::new(&bin)
+    let mut cmd = Command::new(&bin);
+    if let Some(dir) = cwd {
+        cmd.current_dir(dir);
+    }
+    let out = cmd
         .args(args)
         .stdin(Stdio::null()) // no TTY → never hang on an interactive prompt
         .output()
@@ -138,9 +146,28 @@ pub fn claude_run(args: &[&str]) -> Result<(bool, String), String> {
     Ok((out.status.success(), strip_ansi(&text).trim().to_string()))
 }
 
+/// Where to run a CLI command: the project directory in a project scope (the
+/// CLI reads and writes project/local config relative to its cwd); refused for
+/// project/local scope when no project is selected.
+pub fn cli_cwd(scope: &Scope, flag: Option<&str>) -> Result<Option<PathBuf>, String> {
+    if let Scope {
+        kind: ScopeKind::Project,
+        path: Some(p),
+    } = scope
+    {
+        return Ok(Some(PathBuf::from(p)));
+    }
+    match flag {
+        Some(f @ ("project" | "local")) => Err(format!(
+            "switch to the project to change its {f}-scope configuration"
+        )),
+        _ => Ok(None),
+    }
+}
+
 /// Remove an MCP server via the CLI. `claude mcp remove` only supports the
 /// local/user/project scopes — claude.ai-account servers can't be removed here.
-pub fn remove(name: &str, scope_flag: &str) -> Result<String, String> {
+pub fn remove(scope: &Scope, name: &str, scope_flag: &str) -> Result<String, String> {
     if scope_flag == "claudeai" {
         return Err(
             "\"claude.ai\" servers come from your connected claude.ai account and can't be \
@@ -153,7 +180,8 @@ pub fn remove(name: &str, scope_flag: &str) -> Result<String, String> {
         args.push("-s");
         args.push(scope_flag);
     }
-    let (success, out) = claude_run(&args)?;
+    let cwd = cli_cwd(scope, Some(scope_flag))?;
+    let (success, out) = claude_run_in(&args, cwd.as_deref())?;
     cli_result(
         success,
         &out,
@@ -509,5 +537,23 @@ mod tests {
         // A failed command is an error even when it printed something.
         assert_eq!(r(false, "Error: exists"), Err("Error: exists".to_string()));
         assert_eq!(r(false, ""), Err("claude mcp add failed".to_string()));
+    }
+
+    #[test]
+    fn cli_cwd_uses_the_project_for_project_and_local_scopes() {
+        let global = Scope {
+            kind: ScopeKind::Global,
+            path: None,
+        };
+        let proj = Scope {
+            kind: ScopeKind::Project,
+            path: Some("/work/app".into()),
+        };
+        assert_eq!(cli_cwd(&proj, Some("local")), Ok(Some("/work/app".into())));
+        assert_eq!(cli_cwd(&proj, Some("user")), Ok(Some("/work/app".into())));
+        assert_eq!(cli_cwd(&global, Some("user")), Ok(None));
+        assert_eq!(cli_cwd(&global, None), Ok(None));
+        assert!(cli_cwd(&global, Some("project")).is_err());
+        assert!(cli_cwd(&global, Some("local")).is_err());
     }
 }

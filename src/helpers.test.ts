@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  needsTrustWarning,
+  pluginActionLabel,
   isPluginServer,
   joinArgs,
   splitArgs,
@@ -141,5 +143,20 @@ describe("isPluginServer", () => {
     expect(isPluginServer({ name: "db", scope: "plugin" })).toBe(true);
     expect(isPluginServer({ name: "plugin:deploy:db", scope: "unknown" })).toBe(true);
     expect(isPluginServer({ name: "gh", scope: "User config" })).toBe(false);
+  });
+});
+
+describe("plugin actions", () => {
+  it("warns about third-party code only when adding code", () => {
+    expect(needsTrustWarning("install")).toBe(true);
+    expect(needsTrustWarning("marketplace-add")).toBe(true);
+    expect(needsTrustWarning("update")).toBe(true);
+    expect(needsTrustWarning("uninstall")).toBe(false);
+    expect(needsTrustWarning("marketplace-remove")).toBe(false);
+  });
+  it("names each action for its confirm button", () => {
+    expect(pluginActionLabel("install")).toBe("Install");
+    expect(pluginActionLabel("marketplace-update")).toBe("Update marketplace");
+    expect(pluginActionLabel("uninstall")).toBe("Uninstall");
   });
 });

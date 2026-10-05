@@ -14,6 +14,7 @@ mod mcp;
 mod mcp_edit;
 mod memory;
 mod model;
+mod plugin_cli;
 mod plugin_sources;
 mod plugins;
 mod schema;
@@ -349,8 +350,8 @@ fn preview_mcp_toggle(
 }
 
 #[tauri::command]
-async fn mcp_remove(name: String, scope_flag: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || mcp::remove(&name, &scope_flag))
+async fn mcp_remove(scope: Scope, name: String, scope_flag: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || mcp::remove(&scope, &name, &scope_flag))
         .await
         .map_err(|e| format!("task failed: {e}"))?
 }
@@ -388,6 +389,22 @@ async fn mcp_commit_update(
     .map_err(|e| format!("task failed: {e}"))?
 }
 
+#[tauri::command]
+fn plugin_action_preview(scope: Scope, action: plugin_cli::PluginAction) -> Result<String, String> {
+    plugin_cli::working_dir(&scope, &action)?;
+    plugin_cli::display(&action)
+}
+
+#[tauri::command]
+async fn plugin_action_run(
+    scope: Scope,
+    action: plugin_cli::PluginAction,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || plugin_cli::run(&scope, &action))
+        .await
+        .map_err(|e| format!("task failed: {e}"))?
+}
+
 // ---- Phase 3: creation flows + snapshot export ----
 
 #[tauri::command]
@@ -406,8 +423,8 @@ fn mcp_add_preview(spec: creator::McpAddSpec) -> String {
 }
 
 #[tauri::command]
-async fn mcp_add(spec: creator::McpAddSpec) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || creator::mcp_add(&spec))
+async fn mcp_add(scope: Scope, spec: creator::McpAddSpec) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || creator::mcp_add(&scope, &spec))
         .await
         .map_err(|e| format!("task failed: {e}"))?
 }
@@ -478,6 +495,8 @@ pub fn run() {
             mcp_read_spec,
             mcp_preview_update,
             mcp_commit_update,
+            plugin_action_preview,
+            plugin_action_run,
             export_snapshot,
             list_snapshots,
             preview_import,
