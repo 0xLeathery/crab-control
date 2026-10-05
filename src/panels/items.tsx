@@ -5,7 +5,7 @@ import { HistoryModal } from "../history";
 import { isEditableItem } from "../memory";
 import { Editing, TextFileEditor } from "../text-editor";
 import { Empty, Icon } from "../ui";
-import { NewItemModal } from "../create";
+import { ItemKind, NewItemModal } from "../create";
 import { Loading } from "./common";
 
 /* ---------- Items (agents / commands / skills) ---------- */
@@ -156,7 +156,7 @@ export function ItemsPanel({
   filter: string;
   scope: Scope;
   /** Omit for read-only lists (no "New" button). */
-  kind?: "agent" | "command" | "skill";
+  kind?: ItemKind;
   onReload: () => void;
 }) {
   const [creating, setCreating] = useState(false);
@@ -180,7 +180,7 @@ export function ItemsPanel({
       {kind && (
         <div className="toolbar">
           <button className="btn primary" onClick={() => setCreating(true)}>
-            <Icon name="commands" size={13} /> &nbsp;New {kind} ({where})
+            <Icon name="commands" size={13} /> &nbsp;New {kind.replace("-", " ")} ({where})
           </button>
         </div>
       )}

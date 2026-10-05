@@ -61,6 +61,7 @@ export interface ItemsDomain {
   agents: Item[];
   commands: Item[];
   skills: Item[];
+  outputStyles: Item[];
   memory: Item[];
 }
 
@@ -74,7 +75,16 @@ export interface BackupEntry {
 export type BackupTarget =
   | { kind: "settings"; layer: Layer }
   | { kind: "memory"; path: string }
-  | { kind: "item"; path: string };
+  | { kind: "item"; path: string }
+  | { kind: "keybindings" }
+  | { kind: "statusline" };
+
+export interface StatusLine {
+  /** Masked. */
+  command: string;
+  /** The script it runs, when that is a file under .claude/. */
+  script?: MemoryFile | null;
+}
 
 export interface MemoryTarget {
   name: string;
@@ -267,6 +277,11 @@ export const api = {
   saveItem: (scope: Scope, path: string, content: string) =>
     invoke<SaveResult>("save_item", { scope, path, content }),
   deleteItem: (scope: Scope, path: string) => invoke<string>("delete_item", { scope, path }),
+  readKeybindings: () => invoke<MemoryFile>("read_keybindings"),
+  saveKeybindings: (content: string) => invoke<SaveResult>("save_keybindings", { content }),
+  readStatusline: (scope: Scope) => invoke<StatusLine | null>("read_statusline", { scope }),
+  saveStatuslineScript: (scope: Scope, content: string) =>
+    invoke<SaveResult>("save_statusline_script", { scope, content }),
   readMemory: (scope: Scope, path: string) => invoke<MemoryFile>("read_memory", { scope, path }),
   saveMemory: (scope: Scope, path: string, content: string) =>
     invoke<SaveResult>("save_memory", { scope, path, content }),

@@ -273,6 +273,7 @@ pub fn get_items(scope: &Scope) -> ItemsDomain {
     let mut agents = Vec::new();
     let mut commands = Vec::new();
     let mut skills = Vec::new();
+    let mut output_styles = Vec::new();
     let project = match (&scope.kind, &scope.path) {
         (ScopeKind::Project, Some(p)) => Some(PathBuf::from(p)),
         _ => None,
@@ -283,6 +284,7 @@ pub fn get_items(scope: &Scope) -> ItemsDomain {
     agents.extend(scan_md_dir(&cdir.join("agents"), "user"));
     commands.extend(scan_md_dir(&cdir.join("commands"), "user"));
     skills.extend(scan_skills_dir(&cdir.join("skills"), "user"));
+    output_styles.extend(scan_md_dir(&cdir.join("output-styles"), "user"));
 
     // Project scope.
     if scope.kind == ScopeKind::Project {
@@ -291,6 +293,7 @@ pub fn get_items(scope: &Scope) -> ItemsDomain {
             agents.extend(scan_md_dir(&pdir.join("agents"), "project"));
             commands.extend(scan_md_dir(&pdir.join("commands"), "project"));
             skills.extend(scan_skills_dir(&pdir.join("skills"), "project"));
+            output_styles.extend(scan_md_dir(&pdir.join("output-styles"), "project"));
         }
     }
 
@@ -299,12 +302,14 @@ pub fn get_items(scope: &Scope) -> ItemsDomain {
         agents.extend(scan_md_dir(&root.join("agents"), &label));
         commands.extend(scan_md_dir(&root.join("commands"), &label));
         skills.extend(scan_skills_dir(&root.join("skills"), &label));
+        output_styles.extend(scan_md_dir(&root.join("output-styles"), &label));
     }
 
     ItemsDomain {
         agents,
         commands,
         skills,
+        output_styles,
         memory,
     }
 }

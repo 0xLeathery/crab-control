@@ -15,11 +15,13 @@ pub struct ItemPath {
     pub unit: PathBuf,
 }
 
-/// Accept an existing `.md` under `<base>/agents/` or `<base>/commands/`
-/// (any depth), or exactly `<base>/skills/<name>/SKILL.md`.
+/// Accept an existing `.md` under `<base>/agents/`, `<base>/commands/` or
+/// `<base>/output-styles/` (any depth), or exactly `<base>/skills/<name>/SKILL.md`.
 pub fn resolve_item_path(bases: &[PathBuf], requested: &str) -> Result<ItemPath, String> {
     let path = PathBuf::from(requested);
-    let refuse = || format!("not an agent, command or skill Crab Control can edit: {requested}");
+    let refuse = || {
+        format!("not an agent, command, skill or output style Crab Control can edit: {requested}")
+    };
     let plain = path
         .components()
         .all(|c| !matches!(c, std::path::Component::ParentDir));
@@ -33,7 +35,7 @@ pub fn resolve_item_path(bases: &[PathBuf], requested: &str) -> Result<ItemPath,
         let parts: Vec<_> = rel.components().collect();
         let first = parts.first().and_then(|c| c.as_os_str().to_str());
         match first {
-            Some("agents") | Some("commands") if parts.len() >= 2 => {
+            Some("agents") | Some("commands") | Some("output-styles") if parts.len() >= 2 => {
                 return Ok(ItemPath {
                     unit: path.clone(),
                     path,
@@ -102,6 +104,7 @@ mod tests {
             user.join("commands"),
             user.join("skills/review/scripts"),
             proj.join("agents"),
+            proj.join("output-styles"),
             root.join("home/.claude/plugins/cache/p/agents"),
         ] {
             std::fs::create_dir_all(d).unwrap();
@@ -119,6 +122,11 @@ mod tests {
         .unwrap();
         std::fs::write(user.join("skills/review/scripts/run.sh"), "echo hi\n").unwrap();
         std::fs::write(proj.join("agents/local.md"), "Local agent\n").unwrap();
+        std::fs::write(
+            proj.join("output-styles/terse.md"),
+            "---\nname: Terse\n---\n",
+        )
+        .unwrap();
         std::fs::write(
             root.join("home/.claude/plugins/cache/p/agents/plug.md"),
             "plugin\n",
@@ -141,6 +149,7 @@ mod tests {
             user.join("commands/ship.md"),
             user.join("skills/review/SKILL.md"),
             proj.join("agents/local.md"),
+            proj.join("output-styles/terse.md"),
         ] {
             assert!(resolve_item_path(&bases, &s(&ok)).is_ok(), "{ok:?}");
         }

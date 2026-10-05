@@ -72,6 +72,12 @@ keyboard-driven.
 - **Agents, commands, skills** — edit your own (user/project) files in place,
   view their history, or delete them (moved to `.claude/.crab-trash/`, not
   erased). Plugin-provided items stay read-only.
+- **Output styles** — list, create, edit, delete custom output styles
+  (`~/.claude/output-styles`, `.claude/output-styles`; plugin ones read-only).
+- **Keybindings** — edit `~/.claude/keybindings.json` with live validation
+  of its `bindings` structure.
+- **Status line** — see the `statusLine` command and edit the script it
+  runs when that script lives under a `.claude/` folder.
 - **Memory** — edit `CLAUDE.md` files and rules; create a new rule (optionally
   scoped with `paths:` globs).
 

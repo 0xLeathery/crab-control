@@ -34,6 +34,7 @@ function healthy(): TipInput {
       agents: [],
       commands: [],
       skills: [],
+      outputStyles: [],
       memory: [{ name: "CLAUDE.md", source: "project", path: "", displayPath: "", lineCount: 80 }],
     },
   } as TipInput;

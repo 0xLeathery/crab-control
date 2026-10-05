@@ -6,3 +6,4 @@ export { PluginsPanel } from "./plugins";
 export { ItemsPanel } from "./items";
 export { TipsPanel } from "./tips";
 export { MemoryPanel } from "./memory";
+export { KeybindingsPanel, StatusLinePanel } from "./extras";
