@@ -1,92 +1,75 @@
 import { useEffect, useState } from "react";
 import { Item, MemoryTarget, Scope, api } from "../api";
-import { DiffModal } from "../editor";
-import { creatableTargets, memoryStarter } from "../memory";
+import { creatableTargets, memoryStarter, ruleTemplate } from "../memory";
 import { Empty, Icon } from "../ui";
 import { Loading } from "./common";
+import { Editing, TextFileEditor } from "../text-editor";
 import { HistoryModal } from "../history";
 
-interface Editing {
-  path: string;
-  title: string;
-  original: string;
-  text: string;
-}
-
-function MemoryEditor({
+function NewRuleModal({
   scope,
-  editing,
   onClose,
-  onSaved,
+  onCreated,
 }: {
   scope: Scope;
-  editing: Editing;
   onClose: () => void;
-  onSaved: (backup?: string | null) => void;
+  onCreated: (path: string, name: string) => void;
 }) {
-  const [text, setText] = useState(editing.text);
-  const [reviewing, setReviewing] = useState(false);
+  const [name, setName] = useState("");
+  const [paths, setPaths] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const lines = text.split("\n").length;
-
-  const save = async () => {
+  const nameOk = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/.test(name);
+  const create = async () => {
     setBusy(true);
     setError(null);
     try {
-      const res = await api.saveMemory(scope, editing.path, text);
-      if (res.ok) onSaved(res.displayBackup);
-      else setError(res.error ?? "save failed");
+      const r = await api.createItem(scope, "rule", name, ruleTemplate(name, paths));
+      onCreated(r.path, name);
     } catch (e) {
       setError(String(e));
     } finally {
       setBusy(false);
     }
   };
-
-  if (reviewing) {
-    return (
-      <DiffModal
-        subtitle={editing.original ? `Edit ${editing.title}` : `Create ${editing.title}`}
-        path={editing.path}
-        oldText={editing.original}
-        newText={text}
-        busy={busy}
-        error={error}
-        onConfirm={save}
-        onCancel={() => setReviewing(false)}
-      />
-    );
-  }
   return (
     <div className="modal-scrim" onClick={onClose}>
-      <div className="modal" style={{ width: 760 }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal" style={{ width: 520 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <strong className="mono">{editing.title}</strong>
+          <strong>New rule</strong>
         </div>
-        <div className="modal-sub">{editing.path}</div>
-        <div style={{ padding: "10px 16px 0" }}>
-          <textarea
-            className="code-area"
-            spellCheck={false}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={Math.min(30, Math.max(12, lines + 1))}
-          />
-          <div className={`fhint ${lines > 200 ? "err" : ""}`}>
-            {lines} lines{lines > 200 ? " — the docs suggest keeping memory files under 200" : ""}
-          </div>
+        <div className="modal-sub">
+          A topic file in {scope.kind === "project" ? ".claude/rules/" : "~/.claude/rules/"}. With
+          paths, it only loads when Claude works on matching files.
+        </div>
+        <div className="form" style={{ padding: "10px 16px" }}>
+          <label className="fld">
+            <span>Name</span>
+            <input
+              className="finput mono"
+              value={name}
+              autoFocus
+              placeholder="testing"
+              onChange={(e) => setName(e.target.value)}
+            />
+          </label>
+          <label className="fld">
+            <span>Paths (optional, comma-separated globs)</span>
+            <input
+              className="finput mono"
+              value={paths}
+              placeholder="src/api/**/*.ts"
+              onChange={(e) => setPaths(e.target.value)}
+            />
+          </label>
+          {error && <div className="fhint err">{error}</div>}
         </div>
         <div className="modal-foot">
-          <button className="btn" onClick={onClose}>
+          <button className="btn" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button
-            className="btn primary"
-            disabled={text === editing.original}
-            onClick={() => setReviewing(true)}
-          >
-            Review changes…
+          <button className="btn primary" disabled={busy || !nameOk} onClick={create}>
+            Create and edit…
           </button>
         </div>
       </div>
@@ -108,6 +91,7 @@ export function MemoryPanel({
   const [targets, setTargets] = useState<MemoryTarget[]>([]);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [history, setHistory] = useState<Item | null>(null);
+  const [newRule, setNewRule] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -162,6 +146,11 @@ export function MemoryPanel({
         </div>
       )}
 
+      <div className="toolbar">
+        <button className="btn" onClick={() => setNewRule(true)}>
+          + New rule ({scope.kind === "project" ? "project" : "user"})
+        </button>
+      </div>
       {missing.length > 0 && (
         <div className="toolbar">
           {missing.map((t) => (
@@ -196,6 +185,17 @@ export function MemoryPanel({
         ))
       )}
 
+      {newRule && (
+        <NewRuleModal
+          scope={scope}
+          onClose={() => setNewRule(false)}
+          onCreated={async (path, name) => {
+            setNewRule(false);
+            onReload();
+            await open(path, `rule ${name}`);
+          }}
+        />
+      )}
       {history && (
         <HistoryModal
           scope={scope}
@@ -212,10 +212,10 @@ export function MemoryPanel({
         />
       )}
       {editing && (
-        <MemoryEditor
+        <TextFileEditor
           key={editing.path}
-          scope={scope}
           editing={editing}
+          onSave={(text) => api.saveMemory(scope, editing.path, text)}
           onClose={() => setEditing(null)}
           onSaved={(backup) => {
             setEditing(null);

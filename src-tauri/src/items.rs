@@ -142,6 +142,11 @@ fn scan_md_dir(dir: &Path, source: &str) -> Vec<Item> {
 }
 
 /// Scan a skills root: each immediate subdir with a SKILL.md is one skill.
+#[cfg(test)]
+pub fn scan_md_dir_for_test(dir: &Path) -> Vec<Item> {
+    scan_md_dir(dir, "test")
+}
+
 fn scan_skills_dir(dir: &Path, source: &str) -> Vec<Item> {
     let mut items = Vec::new();
     let Ok(entries) = std::fs::read_dir(dir) else {

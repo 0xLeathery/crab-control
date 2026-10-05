@@ -71,6 +71,7 @@ pub fn create_item(
         "agent" => base.join("agents").join(format!("{name}.md")),
         "command" => base.join("commands").join(format!("{name}.md")),
         "skill" => base.join("skills").join(name).join("SKILL.md"),
+        "rule" => base.join("rules").join(format!("{name}.md")),
         _ => return Err(format!("unknown item kind: {kind}")),
     };
     if path.exists() {
@@ -255,6 +256,20 @@ mod tests {
         assert!(validate_name("a/b").is_err());
         assert!(validate_name(".hidden").is_err());
         assert!(validate_name("good-name_1.2").is_ok());
+    }
+
+    #[test]
+    fn creates_rule_files() {
+        let dir = std::env::temp_dir().join(format!("cc-rule-{}", now_ms()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let scope = Scope {
+            kind: ScopeKind::Project,
+            path: Some(dir.display().to_string()),
+        };
+        let r = create_item(&scope, "rule", "testing", "# Testing\n").unwrap();
+        assert!(r.path.ends_with(".claude/rules/testing.md"), "{}", r.path);
+        assert!(create_item(&scope, "rule", "testing", "x").is_err());
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

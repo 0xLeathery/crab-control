@@ -72,7 +72,8 @@ export interface BackupEntry {
 
 export type BackupTarget =
   | { kind: "settings"; layer: Layer }
-  | { kind: "memory"; path: string };
+  | { kind: "memory"; path: string }
+  | { kind: "item"; path: string };
 
 export interface MemoryTarget {
   name: string;
@@ -249,6 +250,10 @@ export const api = {
     invoke<string>("read_backup", { scope, target, backup }),
   restoreBackup: (scope: Scope, target: BackupTarget, backup: string) =>
     invoke<SaveResult>("restore_backup", { scope, target, backup }),
+  readItem: (scope: Scope, path: string) => invoke<string>("read_item", { scope, path }),
+  saveItem: (scope: Scope, path: string, content: string) =>
+    invoke<SaveResult>("save_item", { scope, path, content }),
+  deleteItem: (scope: Scope, path: string) => invoke<string>("delete_item", { scope, path }),
   readMemory: (scope: Scope, path: string) => invoke<MemoryFile>("read_memory", { scope, path }),
   saveMemory: (scope: Scope, path: string, content: string) =>
     invoke<SaveResult>("save_memory", { scope, path, content }),
