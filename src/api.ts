@@ -1,6 +1,7 @@
 // Typed wrappers around the Rust (Tauri) commands. These mirror the serde
 // structs in src-tauri/src/model.rs exactly (camelCase).
 import { invoke } from "@tauri-apps/api/core";
+import type { HookSpec } from "./hooks";
 
 export type ScopeKind = "global" | "project";
 export interface Scope {
@@ -95,6 +96,10 @@ export interface HookEntry {
   matcher?: string | null;
   hookType: string;
   command?: string | null;
+  url?: string | null;
+  prompt?: string | null;
+  model?: string | null;
+  timeout?: number | null;
   source: Layer;
   groupIndex: number;
   hookIndex: number;
@@ -288,10 +293,26 @@ export const api = {
     layer: Layer,
     event: string,
     matcher: string | null,
-    command: string,
-    timeout: number | null
+    spec: HookSpec
+  ) => invoke<MutationPreview>("preview_hook_add", { scope, layer, event, matcher, spec }),
+  previewHookUpdate: (
+    scope: Scope,
+    layer: Layer,
+    event: string,
+    groupIndex: number,
+    hookIndex: number,
+    matcher: string | null,
+    spec: HookSpec
   ) =>
-    invoke<MutationPreview>("preview_hook_add", { scope, layer, event, matcher, command, timeout }),
+    invoke<MutationPreview>("preview_hook_update", {
+      scope,
+      layer,
+      event,
+      groupIndex,
+      hookIndex,
+      matcher,
+      spec,
+    }),
   previewHookRemove: (
     scope: Scope,
     layer: Layer,

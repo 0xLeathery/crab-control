@@ -10,6 +10,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::model::{Layer, Scope, ScopeKind};
+use crate::secrets::contains_mask;
 use crate::settings::layer_path;
 
 #[derive(Debug, Clone, Serialize)]
@@ -263,6 +264,7 @@ pub fn preview_permission_rule(
 
 /// Append a command hook to `hooks.<event>`, joining the group that has the
 /// same matcher if there is one.
+#[cfg(test)]
 pub fn apply_hook_add(
     v: &mut Value,
     event: &str,
@@ -270,33 +272,184 @@ pub fn apply_hook_add(
     command: &str,
     timeout: Option<u64>,
 ) -> Result<(), String> {
-    let event = event.trim();
-    let command = command.trim();
-    if event.is_empty() || command.is_empty() {
-        return Err("event and command are required".into());
+    let spec = HookSpec {
+        hook_type: "command".into(),
+        command: Some(command.to_string()),
+        timeout,
+        ..Default::default()
+    };
+    apply_hook_add_spec(v, event, matcher, &spec)
+}
+
+/// A hook definition from the UI form. Only the fields for `hook_type` are used.
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HookSpec {
+    pub hook_type: String,
+    pub command: Option<String>,
+    pub url: Option<String>,
+    pub prompt: Option<String>,
+    pub model: Option<String>,
+    pub timeout: Option<u64>,
+}
+
+/// Every key the form owns; anything else on a hook (e.g. `async`, `headers`)
+/// is left alone when the type is unchanged.
+const HOOK_FIELDS: [&str; 5] = ["command", "url", "prompt", "model", "timeout"];
+
+/// Validate a spec and turn it into the hook object's `(key, value)` pairs.
+fn hook_fields(spec: &HookSpec) -> Result<Vec<(&'static str, Value)>, String> {
+    let text = |o: &Option<String>| {
+        o.as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(|s| Value::String(s.to_string()))
+    };
+    let hook_type = spec.hook_type.trim();
+    let mut out = vec![("type", Value::String(hook_type.to_string()))];
+    match hook_type {
+        "command" => out.push(("command", text(&spec.command).ok_or("command is required")?)),
+        "http" => {
+            let url = text(&spec.url).ok_or("url is required")?;
+            let s = url.as_str().unwrap_or_default();
+            if !(s.starts_with("http://") || s.starts_with("https://")) {
+                return Err("url must start with http:// or https://".into());
+            }
+            out.push(("url", url));
+        }
+        "prompt" | "agent" => {
+            out.push(("prompt", text(&spec.prompt).ok_or("prompt is required")?));
+            if let Some(m) = text(&spec.model) {
+                out.push(("model", m));
+            }
+        }
+        other => return Err(format!("unsupported hook type: {other}")),
     }
-    let matcher = matcher.map(str::trim).filter(|m| !m.is_empty());
-    let mut hook = serde_json::Map::new();
-    hook.insert("type".into(), Value::String("command".into()));
-    hook.insert("command".into(), Value::String(command.to_string()));
-    if let Some(t) = timeout {
-        hook.insert("timeout".into(), Value::from(t));
+    if let Some(t) = spec.timeout {
+        out.push(("timeout", Value::from(t)));
     }
+    if out.iter().any(|(_, v)| contains_mask(v)) {
+        return Err("contains a masked value — edit the raw settings file instead".into());
+    }
+    Ok(out)
+}
+
+fn clean_matcher(matcher: Option<&str>) -> Option<&str> {
+    matcher.map(str::trim).filter(|m| !m.is_empty())
+}
+
+/// Append `hook` to the group of `hooks.<event>` with this matcher, creating
+/// the group if there is none.
+fn push_hook(v: &mut Value, event: &str, matcher: Option<&str>, hook: Value) {
     let groups = ensure_array(object_entry(v, "hooks"), event);
     let existing = groups
         .iter_mut()
         .find(|g| g.get("matcher").and_then(Value::as_str) == matcher);
     match existing {
-        Some(group) => ensure_array(group, "hooks").push(Value::Object(hook)),
+        Some(group) => ensure_array(group, "hooks").push(hook),
         None => {
             let mut group = serde_json::Map::new();
             if let Some(m) = matcher {
                 group.insert("matcher".into(), Value::String(m.to_string()));
             }
-            group.insert("hooks".into(), Value::Array(vec![Value::Object(hook)]));
+            group.insert("hooks".into(), Value::Array(vec![hook]));
             groups.push(Value::Object(group));
         }
     }
+}
+
+/// Append a hook of any type to `hooks.<event>`.
+pub fn apply_hook_add_spec(
+    v: &mut Value,
+    event: &str,
+    matcher: Option<&str>,
+    spec: &HookSpec,
+) -> Result<(), String> {
+    let event = event.trim();
+    if event.is_empty() {
+        return Err("event is required".into());
+    }
+    let hook: serde_json::Map<String, Value> = hook_fields(spec)?
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v))
+        .collect();
+    push_hook(v, event, clean_matcher(matcher), Value::Object(hook));
+    Ok(())
+}
+
+/// Replace the form-owned fields of an existing hook in place, then move it to
+/// the group for `matcher` if that changed.
+pub fn apply_hook_update(
+    v: &mut Value,
+    event: &str,
+    group: usize,
+    hook: usize,
+    matcher: Option<&str>,
+    spec: &HookSpec,
+) -> Result<(), String> {
+    let fields = hook_fields(spec)?;
+    let matcher = clean_matcher(matcher);
+    let missing = || format!("hook {event}[{group}][{hook}] not found");
+    let groups = v
+        .get_mut("hooks")
+        .and_then(|h| h.get_mut(event))
+        .and_then(Value::as_array_mut)
+        .ok_or_else(missing)?;
+    let current_matcher = groups
+        .get(group)
+        .and_then(|g| g.get("matcher"))
+        .and_then(Value::as_str)
+        .map(String::from);
+    let list = groups
+        .get_mut(group)
+        .and_then(|g| g.get_mut("hooks"))
+        .and_then(Value::as_array_mut)
+        .ok_or_else(missing)?;
+    let lone = list.len() == 1;
+    let obj = list
+        .get_mut(hook)
+        .and_then(Value::as_object_mut)
+        .ok_or_else(missing)?;
+    if obj.get("type").and_then(Value::as_str) != Some(spec.hook_type.trim()) {
+        obj.clear();
+    }
+    for key in HOOK_FIELDS {
+        if !fields.iter().any(|(k, _)| *k == key) {
+            obj.shift_remove(key);
+        }
+    }
+    for (k, val) in fields {
+        obj.insert(k.to_string(), val);
+    }
+
+    if current_matcher.as_deref() == matcher {
+        return Ok(());
+    }
+    let taken = groups
+        .iter()
+        .enumerate()
+        .any(|(i, g)| i != group && g.get("matcher").and_then(Value::as_str) == matcher);
+    if lone && !taken {
+        let g = groups[group].as_object_mut().ok_or_else(missing)?;
+        match matcher {
+            Some(m) => {
+                g.insert("matcher".into(), Value::String(m.to_string()));
+            }
+            None => {
+                g.shift_remove("matcher");
+            }
+        }
+        return Ok(());
+    }
+    let list = groups[group]
+        .get_mut("hooks")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(missing)?;
+    let moved = list.remove(hook);
+    if list.is_empty() {
+        groups.remove(group);
+    }
+    push_hook(v, event, matcher, moved);
     Ok(())
 }
 
@@ -336,15 +489,33 @@ pub fn preview_hook_add(
     layer: Layer,
     event: &str,
     matcher: Option<String>,
-    command: &str,
-    timeout: Option<u64>,
+    spec: HookSpec,
 ) -> Result<MutationPreview, String> {
     let mut probe = Value::Object(Default::default());
-    apply_hook_add(&mut probe, event, matcher.as_deref(), command, timeout)?;
+    apply_hook_add_spec(&mut probe, event, matcher.as_deref(), &spec)?;
     let note = format!("Add {} hook", event.trim());
-    let (event, command) = (event.to_string(), command.to_string());
+    let event = event.to_string();
     build_preview(scope, layer, note, move |v| {
-        let _ = apply_hook_add(v, &event, matcher.as_deref(), &command, timeout);
+        let _ = apply_hook_add_spec(v, &event, matcher.as_deref(), &spec);
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn preview_hook_update(
+    scope: &Scope,
+    layer: Layer,
+    event: &str,
+    group: usize,
+    hook: usize,
+    matcher: Option<String>,
+    spec: HookSpec,
+) -> Result<MutationPreview, String> {
+    let (_, mut probe, _) = current(scope, layer)?;
+    apply_hook_update(&mut probe, event, group, hook, matcher.as_deref(), &spec)?;
+    let note = format!("Edit {event} hook");
+    let event = event.to_string();
+    build_preview(scope, layer, note, move |v| {
+        let _ = apply_hook_update(v, &event, group, hook, matcher.as_deref(), &spec);
     })
 }
 
@@ -561,5 +732,121 @@ mod tests {
         assert!(v["hooks"].get("Stop").is_none(), "{v}");
         assert!(apply_hook_remove(&mut v, "Stop", 0, 0).is_err());
         assert!(apply_hook_remove(&mut v, "PostToolUse", 0, 5).is_err());
+    }
+
+    fn cmd(c: &str) -> HookSpec {
+        HookSpec {
+            hook_type: "command".into(),
+            command: Some(c.into()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn hook_spec_supports_all_types_and_validates() {
+        let mut v = parse("{}");
+        let http = HookSpec {
+            hook_type: "http".into(),
+            url: Some("https://hooks.example/x".into()),
+            timeout: Some(5),
+            ..Default::default()
+        };
+        let prompt = HookSpec {
+            hook_type: "prompt".into(),
+            prompt: Some("Is $ARGUMENTS safe?".into()),
+            model: Some("haiku".into()),
+            ..Default::default()
+        };
+        let agent = HookSpec {
+            hook_type: "agent".into(),
+            prompt: Some("Verify tests pass".into()),
+            ..Default::default()
+        };
+        apply_hook_add_spec(&mut v, "Stop", None, &http).unwrap();
+        apply_hook_add_spec(&mut v, "Stop", None, &prompt).unwrap();
+        apply_hook_add_spec(&mut v, "Stop", None, &agent).unwrap();
+        assert_eq!(
+            v["hooks"]["Stop"][0]["hooks"],
+            parse(
+                r#"[{"type":"http","url":"https://hooks.example/x","timeout":5},
+                    {"type":"prompt","prompt":"Is $ARGUMENTS safe?","model":"haiku"},
+                    {"type":"agent","prompt":"Verify tests pass"}]"#
+            )
+        );
+        let bad = |spec: HookSpec| apply_hook_add_spec(&mut parse("{}"), "Stop", None, &spec);
+        assert!(bad(HookSpec {
+            hook_type: "http".into(),
+            url: Some("ftp://x".into()),
+            ..Default::default()
+        })
+        .is_err());
+        assert!(bad(HookSpec {
+            hook_type: "prompt".into(),
+            ..Default::default()
+        })
+        .is_err());
+        assert!(bad(HookSpec {
+            hook_type: "magic".into(),
+            command: Some("x".into()),
+            ..Default::default()
+        })
+        .is_err());
+        assert!(
+            bad(cmd("curl --token ••••")).is_err(),
+            "masked values are refused"
+        );
+    }
+
+    #[test]
+    fn hook_update_edits_in_place_keeping_unknown_keys() {
+        let mut v = parse(
+            r#"{"hooks":{"PostToolUse":[{"matcher":"Edit","hooks":[
+                {"type":"command","command":"a","async":true,"timeout":9},
+                {"type":"command","command":"b"}]}]}}"#,
+        );
+        let mut spec = cmd("a2");
+        spec.timeout = None;
+        apply_hook_update(&mut v, "PostToolUse", 0, 0, Some("Edit"), &spec).unwrap();
+        assert_eq!(
+            v["hooks"]["PostToolUse"][0]["hooks"][0].to_string(),
+            r#"{"type":"command","command":"a2","async":true}"#
+        );
+        // Changing the type drops the old type's fields.
+        let http = HookSpec {
+            hook_type: "http".into(),
+            url: Some("http://localhost:9/h".into()),
+            ..Default::default()
+        };
+        apply_hook_update(&mut v, "PostToolUse", 0, 1, Some("Edit"), &http).unwrap();
+        assert_eq!(
+            v["hooks"]["PostToolUse"][0]["hooks"][1],
+            parse(r#"{"type":"http","url":"http://localhost:9/h"}"#)
+        );
+        assert!(apply_hook_update(&mut v, "PostToolUse", 0, 7, None, &spec).is_err());
+        assert!(apply_hook_update(&mut v, "Stop", 0, 0, None, &spec).is_err());
+    }
+
+    #[test]
+    fn hook_update_moves_between_matcher_groups() {
+        let mut v = parse(
+            r#"{"hooks":{"PostToolUse":[
+                {"matcher":"Edit","hooks":[{"type":"command","command":"a"},{"type":"command","command":"b"}]},
+                {"matcher":"Write","hooks":[{"type":"command","command":"w"}]}]}}"#,
+        );
+        // b moves into the existing Write group.
+        apply_hook_update(&mut v, "PostToolUse", 0, 1, Some("Write"), &cmd("b")).unwrap();
+        assert_eq!(
+            v["hooks"]["PostToolUse"],
+            parse(
+                r#"[{"matcher":"Edit","hooks":[{"type":"command","command":"a"}]},
+                    {"matcher":"Write","hooks":[{"type":"command","command":"w"},{"type":"command","command":"b"}]}]"#
+            )
+        );
+        // A lone hook with a fresh matcher renames its group in place.
+        apply_hook_update(&mut v, "PostToolUse", 0, 0, Some("Bash"), &cmd("a")).unwrap();
+        assert_eq!(v["hooks"]["PostToolUse"][0]["matcher"], "Bash");
+        // Clearing the matcher removes the key.
+        apply_hook_update(&mut v, "PostToolUse", 0, 0, None, &cmd("a")).unwrap();
+        assert!(v["hooks"]["PostToolUse"][0].get("matcher").is_none(), "{v}");
     }
 }

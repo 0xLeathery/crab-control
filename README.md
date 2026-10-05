@@ -62,7 +62,9 @@ keyboard-driven.
 - **MCP** — add a server, remove a server, enable/disable project servers.
 - **Permissions** — add or remove `allow` / `deny` / `ask` rules in any
   editable layer.
-- **Hooks** — add a command hook (event, matcher, timeout) or remove one.
+- **Hooks** — add, edit, or remove hooks of every type (`command`, `http`,
+  `prompt`, `agent`): event, matcher, timeout, and the type's own fields.
+  Hooks containing a masked secret can only be removed here (edit the raw file).
 - **Agents, commands, skills** — edit your own (user/project) files in place,
   view their history, or delete them (moved to `.claude/.crab-trash/`, not
   erased). Plugin-provided items stay read-only.

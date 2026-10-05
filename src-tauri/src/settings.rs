@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use serde_json::Value;
 
 use crate::model::*;
-use crate::secrets::{mask_command, mask_value};
+use crate::secrets::{mask_command, mask_url, mask_value};
 use crate::util::{claude_dir, read_json, tildify};
 
 /// Managed/enterprise settings path for the current OS (read-only).
@@ -174,26 +174,32 @@ pub fn hooks_in(content: &Value, layer: Layer) -> Vec<HookEntry> {
                 .get("matcher")
                 .and_then(|m| m.as_str())
                 .map(String::from);
-            let entry = |hook_index, hook_type: &str, command: Option<String>| HookEntry {
-                event: event.clone(),
-                matcher: matcher.clone(),
-                hook_type: hook_type.to_string(),
-                command: command.map(|c| mask_command(&c)),
-                source: layer,
-                group_index,
-                hook_index,
+            let entry = |hook_index, h: Option<&Value>| {
+                let text = |k: &str| h.and_then(|h| h.get(k)).and_then(Value::as_str);
+                HookEntry {
+                    event: event.clone(),
+                    matcher: matcher.clone(),
+                    hook_type: match h {
+                        Some(_) => text("type").unwrap_or("command").to_string(),
+                        None => "unknown".into(),
+                    },
+                    command: text("command").map(mask_command),
+                    url: text("url").map(mask_url),
+                    prompt: text("prompt").map(mask_command),
+                    model: text("model").map(String::from),
+                    timeout: h.and_then(|h| h.get("timeout")).and_then(Value::as_u64),
+                    source: layer,
+                    group_index,
+                    hook_index,
+                }
             };
             match group.get("hooks").and_then(|h| h.as_array()) {
                 Some(list) => {
                     for (hook_index, h) in list.iter().enumerate() {
-                        entries.push(entry(
-                            hook_index,
-                            h.get("type").and_then(|t| t.as_str()).unwrap_or("command"),
-                            h.get("command").and_then(|c| c.as_str()).map(String::from),
-                        ));
+                        entries.push(entry(hook_index, Some(h)));
                     }
                 }
-                None => entries.push(entry(0, "unknown", None)),
+                None => entries.push(entry(0, None)),
             }
         }
     }
@@ -249,5 +255,29 @@ mod tests {
         assert!(hooks
             .iter()
             .all(|h| h.event == "PostToolUse" && h.source == Layer::User));
+    }
+
+    #[test]
+    fn hooks_in_reports_other_hook_types_masked() {
+        let v: Value = serde_json::from_str(
+            r#"{"hooks":{"Stop":[{"hooks":[
+                {"type":"http","url":"https://h.dev/x?key=sk_live_abcdefgh12345678","timeout":5},
+                {"type":"prompt","prompt":"Done?","model":"haiku"},
+                {"type":"agent","prompt":"Check tests"}]}]}}"#,
+        )
+        .unwrap();
+        let h = hooks_in(&v, Layer::Project);
+        assert_eq!(h[0].hook_type, "http");
+        let url = h[0].url.clone().unwrap();
+        assert!(
+            url.starts_with("https://h.dev/x?key=") && !url.contains("abcdefgh"),
+            "{url}"
+        );
+        assert_eq!(h[0].timeout, Some(5));
+        assert_eq!(h[1].prompt.as_deref(), Some("Done?"));
+        assert_eq!(h[1].model.as_deref(), Some("haiku"));
+        assert_eq!(h[2].hook_type, "agent");
+        assert_eq!(h[2].prompt.as_deref(), Some("Check tests"));
+        assert!(h[2].command.is_none() && h[2].model.is_none());
     }
 }

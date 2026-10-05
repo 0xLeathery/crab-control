@@ -257,10 +257,30 @@ fn preview_hook_add(
     layer: Layer,
     event: String,
     matcher: Option<String>,
-    command: String,
-    timeout: Option<u64>,
+    spec: edits::HookSpec,
 ) -> Result<edits::MutationPreview, String> {
-    edits::preview_hook_add(&scope, layer, &event, matcher, &command, timeout)
+    edits::preview_hook_add(&scope, layer, &event, matcher, spec)
+}
+
+#[tauri::command]
+fn preview_hook_update(
+    scope: Scope,
+    layer: Layer,
+    event: String,
+    group_index: usize,
+    hook_index: usize,
+    matcher: Option<String>,
+    spec: edits::HookSpec,
+) -> Result<edits::MutationPreview, String> {
+    edits::preview_hook_update(
+        &scope,
+        layer,
+        &event,
+        group_index,
+        hook_index,
+        matcher,
+        spec,
+    )
 }
 
 #[tauri::command]
@@ -368,6 +388,7 @@ pub fn run() {
             save_memory,
             preview_hook_add,
             preview_hook_remove,
+            preview_hook_update,
             mcp_remove,
             create_item,
             mcp_add_preview,
